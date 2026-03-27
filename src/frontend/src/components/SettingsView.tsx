@@ -1,0 +1,781 @@
+import { Label } from "@/components/ui/label";
+import { Slider } from "@/components/ui/slider";
+import { Switch } from "@/components/ui/switch";
+import { useState } from "react";
+import type { View } from "../App";
+import BottomNav from "./BottomNav";
+
+type SubScreen =
+  | null
+  | "privacy"
+  | "security"
+  | "change-number"
+  | "wallpaper"
+  | "backup"
+  | "font-size"
+  | "tones";
+
+const wallpapers = [
+  {
+    id: "default",
+    label: "Pastel Dream",
+    bg: "linear-gradient(135deg, #FFE6DB 0%, #E8DFFF 100%)",
+  },
+  {
+    id: "pink",
+    label: "Pink Cloud",
+    bg: "linear-gradient(135deg, #FFD1DC 0%, #FFB6C1 100%)",
+  },
+  {
+    id: "mint",
+    label: "Mint Fresh",
+    bg: "linear-gradient(135deg, #A0FFCA 0%, #E8DFFF 100%)",
+  },
+  {
+    id: "blue",
+    label: "Sky Bliss",
+    bg: "linear-gradient(135deg, #C1E1FF 0%, #E8DFFF 100%)",
+  },
+];
+
+const tones = [
+  "Chirp 🎵",
+  "Bubble Pop 🫧",
+  "Soft Bell 🔔",
+  "Kawaii Chime ✨",
+  "Heartbeat 💓",
+];
+
+const SETTINGS_BG = "linear-gradient(160deg, #FFF5FA 0%, #E8F0FF 100%)";
+
+interface SettingsViewProps {
+  onBack: () => void;
+  onNav: (v: View) => void;
+}
+
+export default function SettingsView({ onBack, onNav }: SettingsViewProps) {
+  const [subScreen, setSubScreen] = useState<SubScreen>(null);
+  const [msgNotif, setMsgNotif] = useState(true);
+  const [groupNotif, setGroupNotif] = useState(true);
+  const [wifiDownload, setWifiDownload] = useState(true);
+  const [mobileDownload, setMobileDownload] = useState(false);
+  const [fontSize, setFontSize] = useState([14]);
+  const [selectedWallpaper, setSelectedWallpaper] = useState("default");
+  const [selectedTone, setSelectedTone] = useState("Chirp 🎵");
+  const [newNumber, setNewNumber] = useState("");
+  // privacy toggles
+  const [lastSeen, setLastSeen] = useState(true);
+  const [profilePhoto, setProfilePhoto] = useState(true);
+  const [readReceipts, setReadReceipts] = useState(true);
+
+  const sectionCard = (children: React.ReactNode) => (
+    <div
+      className="w-full max-w-md rounded-2xl overflow-hidden"
+      style={{ background: "#FFFAF5", border: "1.5px solid #FFD1DC" }}
+    >
+      {children}
+    </div>
+  );
+
+  const settingRow = (
+    icon: string,
+    label: string,
+    onClick: () => void,
+    ocid: string,
+    last = false,
+  ) => (
+    <button
+      type="button"
+      onClick={onClick}
+      data-ocid={ocid}
+      className="w-full flex items-center gap-3 px-5 py-4 text-left hover:opacity-80 transition-all"
+      style={{ borderBottom: last ? "none" : "1px solid #FFE6DB" }}
+    >
+      <span className="text-xl">{icon}</span>
+      <span
+        className="flex-1 text-sm font-semibold"
+        style={{ color: "#1E1E1E" }}
+      >
+        {label}
+      </span>
+      <span style={{ color: "#FF8C9F" }}>›</span>
+    </button>
+  );
+
+  if (subScreen === "privacy") {
+    return (
+      <div
+        className="min-h-screen flex flex-col"
+        style={{
+          background: SETTINGS_BG,
+          fontFamily: "'Quicksand', sans-serif",
+          paddingBottom: "80px",
+        }}
+      >
+        <div
+          className="flex items-center gap-3 px-4 py-3"
+          style={{ background: "#FFFAF5", borderBottom: "1.5px solid #FFD1DC" }}
+        >
+          <button
+            type="button"
+            onClick={() => setSubScreen(null)}
+            data-ocid="settings.back.button"
+            className="w-9 h-9 rounded-full flex items-center justify-center font-bold text-xl hover:opacity-70 transition-all"
+            style={{ background: "#FFF0F4", color: "#FF8C9F" }}
+          >
+            ←
+          </button>
+          <h1 className="text-xl font-bold" style={{ color: "#FF8C9F" }}>
+            Privacy 🔒
+          </h1>
+        </div>
+        <div className="flex flex-col items-center px-5 py-6 gap-4">
+          {sectionCard(
+            <>
+              <div
+                className="flex items-center justify-between px-5 py-4"
+                style={{ borderBottom: "1px solid #FFE6DB" }}
+              >
+                <Label
+                  className="text-sm font-semibold"
+                  style={{ color: "#5A4E4E" }}
+                >
+                  Last Seen
+                </Label>
+                <Switch
+                  checked={lastSeen}
+                  onCheckedChange={setLastSeen}
+                  data-ocid="settings.last_seen.switch"
+                />
+              </div>
+              <div
+                className="flex items-center justify-between px-5 py-4"
+                style={{ borderBottom: "1px solid #FFE6DB" }}
+              >
+                <Label
+                  className="text-sm font-semibold"
+                  style={{ color: "#5A4E4E" }}
+                >
+                  Profile Photo
+                </Label>
+                <Switch
+                  checked={profilePhoto}
+                  onCheckedChange={setProfilePhoto}
+                  data-ocid="settings.profile_photo.switch"
+                />
+              </div>
+              <div className="flex items-center justify-between px-5 py-4">
+                <Label
+                  className="text-sm font-semibold"
+                  style={{ color: "#5A4E4E" }}
+                >
+                  Read Receipts
+                </Label>
+                <Switch
+                  checked={readReceipts}
+                  onCheckedChange={setReadReceipts}
+                  data-ocid="settings.read_receipts.switch"
+                />
+              </div>
+            </>,
+          )}
+        </div>
+        <BottomNav active="account" onNav={onNav} />
+      </div>
+    );
+  }
+
+  if (subScreen === "security") {
+    return (
+      <div
+        className="min-h-screen flex flex-col"
+        style={{
+          background: SETTINGS_BG,
+          fontFamily: "'Quicksand', sans-serif",
+          paddingBottom: "80px",
+        }}
+      >
+        <div
+          className="flex items-center gap-3 px-4 py-3"
+          style={{ background: "#FFFAF5", borderBottom: "1.5px solid #FFD1DC" }}
+        >
+          <button
+            type="button"
+            onClick={() => setSubScreen(null)}
+            data-ocid="settings.back.button"
+            className="w-9 h-9 rounded-full flex items-center justify-center font-bold text-xl hover:opacity-70 transition-all"
+            style={{ background: "#FFF0F4", color: "#FF8C9F" }}
+          >
+            ←
+          </button>
+          <h1 className="text-xl font-bold" style={{ color: "#FF8C9F" }}>
+            Security 🔐
+          </h1>
+        </div>
+        <div className="flex flex-col items-center px-5 py-8">
+          <div
+            className="w-full max-w-md rounded-2xl p-6 text-center"
+            style={{ background: "#FFFAF5", border: "1.5px solid #E8DFFF" }}
+          >
+            <span className="text-5xl">🔐</span>
+            <p
+              className="mt-4 font-semibold text-sm"
+              style={{ color: "#5A4E4E" }}
+            >
+              Two-step verification keeps your account secure with a PIN when
+              registering on a new device.
+            </p>
+            <button
+              type="button"
+              className="mt-5 px-6 py-2.5 rounded-full text-sm font-bold text-white hover:opacity-85 transition-all"
+              style={{ background: "#FF8C9F" }}
+              data-ocid="settings.security.primary_button"
+            >
+              Enable 2-Step Verification
+            </button>
+          </div>
+        </div>
+        <BottomNav active="account" onNav={onNav} />
+      </div>
+    );
+  }
+
+  if (subScreen === "change-number") {
+    return (
+      <div
+        className="min-h-screen flex flex-col"
+        style={{
+          background: SETTINGS_BG,
+          fontFamily: "'Quicksand', sans-serif",
+          paddingBottom: "80px",
+        }}
+      >
+        <div
+          className="flex items-center gap-3 px-4 py-3"
+          style={{ background: "#FFFAF5", borderBottom: "1.5px solid #FFD1DC" }}
+        >
+          <button
+            type="button"
+            onClick={() => setSubScreen(null)}
+            data-ocid="settings.back.button"
+            className="w-9 h-9 rounded-full flex items-center justify-center font-bold text-xl hover:opacity-70 transition-all"
+            style={{ background: "#FFF0F4", color: "#FF8C9F" }}
+          >
+            ←
+          </button>
+          <h1 className="text-xl font-bold" style={{ color: "#FF8C9F" }}>
+            Change Number 📱
+          </h1>
+        </div>
+        <div className="flex flex-col items-center px-5 py-8 gap-4">
+          <div
+            className="w-full max-w-md rounded-2xl p-6 flex flex-col gap-4"
+            style={{ background: "#FFFAF5", border: "1.5px solid #FFD1DC" }}
+          >
+            <p className="text-sm" style={{ color: "#5A4E4E" }}>
+              Enter your new phone number to migrate your account.
+            </p>
+            <input
+              type="tel"
+              value={newNumber}
+              onChange={(e) => setNewNumber(e.target.value)}
+              placeholder="+91 XXXXX XXXXX"
+              className="w-full px-4 py-3 rounded-full text-sm outline-none"
+              style={{
+                background: "#FFF5F8",
+                border: "1.5px solid #FFD1DC",
+                color: "#1E1E1E",
+              }}
+              data-ocid="settings.change_number.input"
+            />
+            <button
+              type="button"
+              className="w-full py-3 rounded-full text-sm font-bold text-white hover:opacity-85 transition-all"
+              style={{ background: "#FF8C9F" }}
+              data-ocid="settings.change_number.submit_button"
+            >
+              Continue ›
+            </button>
+          </div>
+        </div>
+        <BottomNav active="account" onNav={onNav} />
+      </div>
+    );
+  }
+
+  if (subScreen === "wallpaper") {
+    return (
+      <div
+        className="min-h-screen flex flex-col"
+        style={{
+          background: SETTINGS_BG,
+          fontFamily: "'Quicksand', sans-serif",
+          paddingBottom: "80px",
+        }}
+      >
+        <div
+          className="flex items-center gap-3 px-4 py-3"
+          style={{ background: "#FFFAF5", borderBottom: "1.5px solid #FFD1DC" }}
+        >
+          <button
+            type="button"
+            onClick={() => setSubScreen(null)}
+            data-ocid="settings.back.button"
+            className="w-9 h-9 rounded-full flex items-center justify-center font-bold text-xl hover:opacity-70 transition-all"
+            style={{ background: "#FFF0F4", color: "#FF8C9F" }}
+          >
+            ←
+          </button>
+          <h1 className="text-xl font-bold" style={{ color: "#FF8C9F" }}>
+            Wallpaper 🖼️
+          </h1>
+        </div>
+        <div className="flex flex-col items-center px-5 py-6 gap-4">
+          <div className="grid grid-cols-2 gap-4 w-full max-w-md">
+            {wallpapers.map((w, i) => (
+              <button
+                key={w.id}
+                type="button"
+                onClick={() => setSelectedWallpaper(w.id)}
+                data-ocid={`settings.wallpaper.item.${i + 1}`}
+                className="flex flex-col gap-2 p-3 rounded-2xl transition-all hover:opacity-85"
+                style={{
+                  background: "#FFFAF5",
+                  border:
+                    selectedWallpaper === w.id
+                      ? "2.5px solid #FF8C9F"
+                      : "1.5px solid #FFD1DC",
+                  boxShadow:
+                    selectedWallpaper === w.id ? "0 0 12px #FF8C9F44" : "none",
+                }}
+              >
+                <div className="h-24 rounded-xl" style={{ background: w.bg }} />
+                <span
+                  className="text-xs font-semibold"
+                  style={{
+                    color: selectedWallpaper === w.id ? "#FF8C9F" : "#5A4E4E",
+                  }}
+                >
+                  {selectedWallpaper === w.id ? "✓ " : ""}
+                  {w.label}
+                </span>
+              </button>
+            ))}
+          </div>
+        </div>
+        <BottomNav active="account" onNav={onNav} />
+      </div>
+    );
+  }
+
+  if (subScreen === "backup") {
+    return (
+      <div
+        className="min-h-screen flex flex-col"
+        style={{
+          background: SETTINGS_BG,
+          fontFamily: "'Quicksand', sans-serif",
+          paddingBottom: "80px",
+        }}
+      >
+        <div
+          className="flex items-center gap-3 px-4 py-3"
+          style={{ background: "#FFFAF5", borderBottom: "1.5px solid #FFD1DC" }}
+        >
+          <button
+            type="button"
+            onClick={() => setSubScreen(null)}
+            data-ocid="settings.back.button"
+            className="w-9 h-9 rounded-full flex items-center justify-center font-bold text-xl hover:opacity-70 transition-all"
+            style={{ background: "#FFF0F4", color: "#FF8C9F" }}
+          >
+            ←
+          </button>
+          <h1 className="text-xl font-bold" style={{ color: "#FF8C9F" }}>
+            Chat Backup ☁️
+          </h1>
+        </div>
+        <div className="flex flex-col items-center px-5 py-8">
+          <div
+            className="w-full max-w-md rounded-2xl p-6 text-center"
+            style={{ background: "#FFFAF5", border: "1.5px solid #E8DFFF" }}
+          >
+            <span className="text-5xl">☁️</span>
+            <p className="mt-3 font-bold" style={{ color: "#1E1E1E" }}>
+              Last Backup
+            </p>
+            <p className="mt-1 text-sm" style={{ color: "#5A4E4E" }}>
+              Today at 3:20 PM · 12.4 MB
+            </p>
+            <button
+              type="button"
+              className="mt-5 px-6 py-2.5 rounded-full text-sm font-bold text-white hover:opacity-85 transition-all"
+              style={{ background: "#FF8C9F" }}
+              data-ocid="settings.backup.primary_button"
+            >
+              Backup Now
+            </button>
+          </div>
+        </div>
+        <BottomNav active="account" onNav={onNav} />
+      </div>
+    );
+  }
+
+  if (subScreen === "font-size") {
+    return (
+      <div
+        className="min-h-screen flex flex-col"
+        style={{
+          background: SETTINGS_BG,
+          fontFamily: "'Quicksand', sans-serif",
+          paddingBottom: "80px",
+        }}
+      >
+        <div
+          className="flex items-center gap-3 px-4 py-3"
+          style={{ background: "#FFFAF5", borderBottom: "1.5px solid #FFD1DC" }}
+        >
+          <button
+            type="button"
+            onClick={() => setSubScreen(null)}
+            data-ocid="settings.back.button"
+            className="w-9 h-9 rounded-full flex items-center justify-center font-bold text-xl hover:opacity-70 transition-all"
+            style={{ background: "#FFF0F4", color: "#FF8C9F" }}
+          >
+            ←
+          </button>
+          <h1 className="text-xl font-bold" style={{ color: "#FF8C9F" }}>
+            Font Size 🔤
+          </h1>
+        </div>
+        <div className="flex flex-col items-center px-5 py-8 gap-6">
+          <div
+            className="w-full max-w-md rounded-2xl p-6 flex flex-col gap-6"
+            style={{ background: "#FFFAF5", border: "1.5px solid #FFD1DC" }}
+          >
+            <p
+              style={{
+                fontSize: `${fontSize[0]}px`,
+                color: "#1E1E1E",
+                fontWeight: 600,
+              }}
+            >
+              Preview: Hello, Lily! 🌸 This is how your chat text will look.
+            </p>
+            <div className="flex flex-col gap-3">
+              <div
+                className="flex justify-between text-xs font-bold"
+                style={{ color: "#FF8C9F" }}
+              >
+                <span>Small</span>
+                <span>Medium</span>
+                <span>Large</span>
+              </div>
+              <Slider
+                min={11}
+                max={20}
+                step={1}
+                value={fontSize}
+                onValueChange={setFontSize}
+                data-ocid="settings.font_size.select"
+              />
+            </div>
+            <p className="text-xs text-center" style={{ color: "#aaa" }}>
+              Current: {fontSize[0]}px
+            </p>
+          </div>
+        </div>
+        <BottomNav active="account" onNav={onNav} />
+      </div>
+    );
+  }
+
+  if (subScreen === "tones") {
+    return (
+      <div
+        className="min-h-screen flex flex-col"
+        style={{
+          background: SETTINGS_BG,
+          fontFamily: "'Quicksand', sans-serif",
+          paddingBottom: "80px",
+        }}
+      >
+        <div
+          className="flex items-center gap-3 px-4 py-3"
+          style={{ background: "#FFFAF5", borderBottom: "1.5px solid #FFD1DC" }}
+        >
+          <button
+            type="button"
+            onClick={() => setSubScreen(null)}
+            data-ocid="settings.back.button"
+            className="w-9 h-9 rounded-full flex items-center justify-center font-bold text-xl hover:opacity-70 transition-all"
+            style={{ background: "#FFF0F4", color: "#FF8C9F" }}
+          >
+            ←
+          </button>
+          <h1 className="text-xl font-bold" style={{ color: "#FF8C9F" }}>
+            Custom Tones 🎵
+          </h1>
+        </div>
+        <div className="flex flex-col items-center px-5 py-6">
+          {sectionCard(
+            tones.map((tone, i) => (
+              <button
+                key={tone}
+                type="button"
+                onClick={() => setSelectedTone(tone)}
+                data-ocid={`settings.tone.item.${i + 1}`}
+                className="w-full flex items-center justify-between px-5 py-4 hover:opacity-80 transition-all"
+                style={{
+                  borderBottom:
+                    i < tones.length - 1 ? "1px solid #FFE6DB" : "none",
+                }}
+              >
+                <span
+                  className="text-sm font-semibold"
+                  style={{ color: "#1E1E1E" }}
+                >
+                  {tone}
+                </span>
+                {selectedTone === tone && (
+                  <span style={{ color: "#FF8C9F" }}>✓</span>
+                )}
+              </button>
+            )),
+          )}
+        </div>
+        <BottomNav active="account" onNav={onNav} />
+      </div>
+    );
+  }
+
+  // Main settings screen
+  return (
+    <div
+      className="min-h-screen flex flex-col"
+      style={{
+        background: SETTINGS_BG,
+        fontFamily: "'Quicksand', sans-serif",
+        paddingBottom: "80px",
+      }}
+    >
+      {/* Header */}
+      <div
+        className="flex items-center gap-3 px-4 py-3"
+        style={{ background: "#FFFAF5", borderBottom: "1.5px solid #FFD1DC" }}
+      >
+        <button
+          type="button"
+          onClick={onBack}
+          data-ocid="settings.back.button"
+          className="w-9 h-9 rounded-full flex items-center justify-center font-bold text-xl hover:opacity-70 transition-all"
+          style={{ background: "#FFF0F4", color: "#FF8C9F" }}
+        >
+          ←
+        </button>
+        <h1 className="text-xl font-bold" style={{ color: "#FF8C9F" }}>
+          Settings ⚙️
+        </h1>
+      </div>
+
+      <div className="flex flex-col items-center px-5 py-6 gap-5">
+        {/* Account */}
+        <div className="w-full max-w-md">
+          <p
+            className="text-xs font-bold uppercase tracking-wider mb-2 px-1"
+            style={{ color: "#FF8C9F" }}
+          >
+            Account
+          </p>
+          {sectionCard(
+            <>
+              {settingRow(
+                "🔒",
+                "Privacy",
+                () => setSubScreen("privacy"),
+                "settings.privacy.button",
+              )}
+              {settingRow(
+                "🔐",
+                "Security",
+                () => setSubScreen("security"),
+                "settings.security.button",
+              )}
+              {settingRow(
+                "📱",
+                "Change Number",
+                () => setSubScreen("change-number"),
+                "settings.change_number.button",
+                true,
+              )}
+            </>,
+          )}
+        </div>
+
+        {/* Chats */}
+        <div className="w-full max-w-md">
+          <p
+            className="text-xs font-bold uppercase tracking-wider mb-2 px-1"
+            style={{ color: "#FF8C9F" }}
+          >
+            Chats
+          </p>
+          {sectionCard(
+            <>
+              {settingRow(
+                "🖼️",
+                "Wallpaper",
+                () => setSubScreen("wallpaper"),
+                "settings.wallpaper.button",
+              )}
+              {settingRow(
+                "☁️",
+                "Chat Backup",
+                () => setSubScreen("backup"),
+                "settings.backup.button",
+              )}
+              {settingRow(
+                "🔤",
+                "Font Size",
+                () => setSubScreen("font-size"),
+                "settings.font_size.button",
+                true,
+              )}
+            </>,
+          )}
+        </div>
+
+        {/* Notifications */}
+        <div className="w-full max-w-md">
+          <p
+            className="text-xs font-bold uppercase tracking-wider mb-2 px-1"
+            style={{ color: "#FF8C9F" }}
+          >
+            Notifications
+          </p>
+          {sectionCard(
+            <>
+              <div
+                className="flex items-center justify-between px-5 py-4"
+                style={{ borderBottom: "1px solid #FFE6DB" }}
+              >
+                <div className="flex items-center gap-3">
+                  <span className="text-xl">💬</span>
+                  <Label
+                    className="text-sm font-semibold cursor-pointer"
+                    style={{ color: "#1E1E1E" }}
+                  >
+                    Message Notifications
+                  </Label>
+                </div>
+                <Switch
+                  checked={msgNotif}
+                  onCheckedChange={setMsgNotif}
+                  data-ocid="settings.msg_notif.switch"
+                />
+              </div>
+              <div
+                className="flex items-center justify-between px-5 py-4"
+                style={{ borderBottom: "1px solid #FFE6DB" }}
+              >
+                <div className="flex items-center gap-3">
+                  <span className="text-xl">👥</span>
+                  <Label
+                    className="text-sm font-semibold cursor-pointer"
+                    style={{ color: "#1E1E1E" }}
+                  >
+                    Group Notifications
+                  </Label>
+                </div>
+                <Switch
+                  checked={groupNotif}
+                  onCheckedChange={setGroupNotif}
+                  data-ocid="settings.group_notif.switch"
+                />
+              </div>
+              {settingRow(
+                "🎵",
+                "Custom Tones",
+                () => setSubScreen("tones"),
+                "settings.tones.button",
+                true,
+              )}
+            </>,
+          )}
+        </div>
+
+        {/* Data & Storage */}
+        <div className="w-full max-w-md">
+          <p
+            className="text-xs font-bold uppercase tracking-wider mb-2 px-1"
+            style={{ color: "#FF8C9F" }}
+          >
+            Data & Storage
+          </p>
+          {sectionCard(
+            <>
+              <div
+                className="flex items-center justify-between px-5 py-4"
+                style={{ borderBottom: "1px solid #FFE6DB" }}
+              >
+                <div className="flex items-center gap-3">
+                  <span className="text-xl">📶</span>
+                  <Label
+                    className="text-sm font-semibold cursor-pointer"
+                    style={{ color: "#1E1E1E" }}
+                  >
+                    Auto-Download on Wi-Fi
+                  </Label>
+                </div>
+                <Switch
+                  checked={wifiDownload}
+                  onCheckedChange={setWifiDownload}
+                  data-ocid="settings.wifi_download.switch"
+                />
+              </div>
+              <div
+                className="flex items-center justify-between px-5 py-4"
+                style={{ borderBottom: "1px solid #FFE6DB" }}
+              >
+                <div className="flex items-center gap-3">
+                  <span className="text-xl">📱</span>
+                  <Label
+                    className="text-sm font-semibold cursor-pointer"
+                    style={{ color: "#1E1E1E" }}
+                  >
+                    Auto-Download on Mobile
+                  </Label>
+                </div>
+                <Switch
+                  checked={mobileDownload}
+                  onCheckedChange={setMobileDownload}
+                  data-ocid="settings.mobile_download.switch"
+                />
+              </div>
+              <div className="flex items-center justify-between px-5 py-4">
+                <div className="flex items-center gap-3">
+                  <span className="text-xl">💾</span>
+                  <span
+                    className="text-sm font-semibold"
+                    style={{ color: "#1E1E1E" }}
+                  >
+                    Storage Usage
+                  </span>
+                </div>
+                <span
+                  className="text-xs font-bold"
+                  style={{ color: "#FF8C9F" }}
+                >
+                  124 MB
+                </span>
+              </div>
+            </>,
+          )}
+        </div>
+      </div>
+
+      <BottomNav active="account" onNav={onNav} />
+    </div>
+  );
+}
