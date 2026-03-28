@@ -1,23 +1,29 @@
 import { useEffect, useState } from "react";
+import type { PublicUser } from "./backend.d";
 import ActiveChat from "./components/ActiveChat";
+import AdminView from "./components/AdminView";
 import CentralDashboard from "./components/CentralDashboard";
 import ChatList from "./components/ChatList";
 import ChatPanel from "./components/ChatPanel";
 import FeaturedCreations from "./components/FeaturedCreations";
 import Footer from "./components/Footer";
 import LeftSidebar from "./components/LeftSidebar";
+import LoginScreen from "./components/LoginScreen";
 import ProfileView from "./components/ProfileView";
 import SettingsView from "./components/SettingsView";
 import SplashScreen from "./components/SplashScreen";
 import TopNav from "./components/TopNav";
+import { getActor } from "./lib/actor";
 
 export type View =
   | "splash"
+  | "login"
   | "home"
   | "chatList"
   | "activeChat"
   | "profile"
-  | "settings";
+  | "settings"
+  | "admin";
 
 export type Message = {
   id: number;
@@ -30,169 +36,88 @@ export type Message = {
   status?: "sent" | "delivered" | "read";
 };
 
-const initialMessages: Record<string, Message[]> = {
-  "Art Buddies": [
-    {
-      id: 1,
-      sender: "Lily",
-      side: "left",
-      text: "Hello, Icsan to oee you can cute drawing arounoi!! ❤️❤️",
-      time: "2:30 PM",
-      status: "read",
-    },
-    {
-      id: 2,
-      sender: "Sara",
-      side: "left",
-      text: "Omg I just finished this!! 🥺✨",
-      time: "2:31 PM",
-      image: "sara-chibi",
-    },
-    { id: 3, sender: "Sara", side: "left", text: "❤️", time: "2:32 PM" },
-    {
-      id: 4,
-      sender: "Ben",
-      side: "left",
-      text: "Shared more image",
-      time: "2:33 PM",
-      image: "ben-anime",
-    },
-    { id: 5, sender: "Sara", side: "left", text: "💗✨😊", time: "2:34 PM" },
-  ],
-  "Cute Pets Corner": [
-    {
-      id: 1,
-      sender: "Mia",
-      side: "left",
-      text: "Look at my fluffy cat!! 🐱💕",
-      time: "1:10 PM",
-    },
-    {
-      id: 2,
-      sender: "Ben",
-      side: "left",
-      text: "So adorable! 😍🐾",
-      time: "1:12 PM",
-    },
-  ],
-  "Meme Madness": [
-    {
-      id: 1,
-      sender: "Ben",
-      side: "left",
-      text: "This meme is too real 😂😂",
-      time: "11:45 AM",
-    },
-    {
-      id: 2,
-      sender: "Sara",
-      side: "left",
-      text: "LMAO I felt that in my soul 💀✨",
-      time: "11:46 AM",
-    },
-  ],
-  "Cosplay Crew": [
-    {
-      id: 1,
-      sender: "Mia",
-      side: "left",
-      text: "Just finished my Sailor Moon outfit!! 🌙✨",
-      time: "3:20 PM",
-    },
-  ],
-  "Book Nook": [
-    {
-      id: 1,
-      sender: "Sara",
-      side: "left",
-      text: "Anyone read 'The Night Circus'? 📚✨",
-      time: "10:05 AM",
-    },
-    {
-      id: 2,
-      sender: "Mia",
-      side: "left",
-      text: "Yes!! It's magical 🌟",
-      time: "10:08 AM",
-    },
-  ],
-  "DM: Ben": [
-    {
-      id: 1,
-      sender: "Ben",
-      side: "left",
-      text: "Hey! Did you see my new artwork? 🎨",
-      time: "9:30 AM",
-    },
-  ],
-  "DM: Sara": [
-    {
-      id: 1,
-      sender: "Sara",
-      side: "left",
-      text: "Hiiii 🌸 What are you drawing today?",
-      time: "Yesterday",
-    },
-  ],
-  "DM: Mia": [
-    {
-      id: 1,
-      sender: "Mia",
-      side: "left",
-      text: "Can we collab on something cute? 🎀",
-      time: "Mon",
-    },
-  ],
+const serializeUser = (user: PublicUser): string => {
+  return JSON.stringify(user, (_, value) =>
+    typeof value === "bigint" ? `__bigint__${value.toString()}` : value,
+  );
+};
+
+const deserializeUser = (str: string): PublicUser => {
+  return JSON.parse(str, (_, value) => {
+    if (typeof value === "string" && value.startsWith("__bigint__")) {
+      return BigInt(value.slice(10));
+    }
+    return value;
+  });
 };
 
 export default function App() {
   const [view, setView] = useState<View>("splash");
   const [activeChatName, setActiveChatName] = useState<string>("Art Buddies");
-  const [messages, setMessages] =
-    useState<Record<string, Message[]>>(initialMessages);
   const [dpUrl, setDpUrl] = useState<string | null>(null);
+  const [token, setToken] = useState<string | null>(null);
+  const [currentUser, setCurrentUser] = useState<PublicUser | null>(null);
 
   useEffect(() => {
-    if (view === "splash") {
-      const timer = setTimeout(() => setView("home"), 2500);
-      return () => clearTimeout(timer);
+    const timer = setTimeout(() => {
+      const savedToken = localStorage.getItem("chatme_token");
+      const savedUser = localStorage.getItem("chatme_user");
+      if (savedToken && savedUser) {
+        try {
+          const user = deserializeUser(savedUser);
+          setToken(savedToken);
+          setCurrentUser(user);
+          setDpUrl(user.avatarUrl || null);
+          setView("home");
+        } catch {
+          setView("login");
+        }
+      } else {
+        setView("login");
+      }
+    }, 2500);
+    return () => clearTimeout(timer);
+  }, []);
+
+  const handleLogin = (tok: string, user: PublicUser) => {
+    setToken(tok);
+    setCurrentUser(user);
+    setDpUrl(user.avatarUrl || null);
+    localStorage.setItem("chatme_token", tok);
+    localStorage.setItem("chatme_user", serializeUser(user));
+    setView("home");
+  };
+
+  const handleLogout = async () => {
+    if (token) {
+      try {
+        const actor = await getActor();
+        await actor.logout(token);
+      } catch {
+        // ignore
+      }
     }
-  }, [view]);
+    setToken(null);
+    setCurrentUser(null);
+    setDpUrl(null);
+    localStorage.removeItem("chatme_token");
+    localStorage.removeItem("chatme_user");
+    setView("login");
+  };
 
   const openChat = (chatName: string) => {
     setActiveChatName(chatName);
     setView("activeChat");
   };
 
-  const sendMessage = (chatName: string, text: string, imageUrl?: string) => {
-    const newId = Date.now();
-    const newMsg: Message = {
-      id: newId,
-      sender: "You",
-      side: "right",
-      text,
-      time: new Date().toLocaleTimeString([], {
-        hour: "2-digit",
-        minute: "2-digit",
-      }),
-      imageUrl,
-      status: "sent",
-    };
-    setMessages((prev) => ({
-      ...prev,
-      [chatName]: [...(prev[chatName] ?? []), newMsg],
-    }));
-    setTimeout(() => {
-      setMessages((prev) => ({
-        ...prev,
-        [chatName]: (prev[chatName] ?? []).map((m) =>
-          m.id === newId ? { ...m, status: "delivered" } : m,
-        ),
-      }));
-    }, 1000);
-  };
-
   if (view === "splash") return <SplashScreen />;
+  if (view === "login") return <LoginScreen onLogin={handleLogin} />;
+
+  if (view === "admin" && token) {
+    return (
+      <AdminView token={token} onBack={() => setView("home")} onNav={setView} />
+    );
+  }
 
   if (view === "home") {
     return (
@@ -208,10 +133,12 @@ export default function App() {
         <TopNav
           activeTab="Home"
           dpUrl={dpUrl}
+          currentUser={currentUser}
           onNav={(tab) => {
             if (tab === "Chat") setView("chatList");
             else if (tab === "Account") setView("profile");
             else if (tab === "Settings") setView("settings");
+            else if (tab === "Admin") setView("admin");
           }}
         />
         <main
@@ -222,8 +149,8 @@ export default function App() {
           <CentralDashboard onJoinChat={openChat} />
           <ChatPanel
             chatName="Art Buddies"
-            messages={messages["Art Buddies"] ?? []}
-            onSend={(text) => sendMessage("Art Buddies", text)}
+            messages={[]}
+            onSend={() => {}}
             onOpenChat={() => openChat("Art Buddies")}
           />
           <FeaturedCreations />
@@ -244,17 +171,24 @@ export default function App() {
   }
 
   if (view === "chatList") {
-    return <ChatList onOpenChat={openChat} onNav={(v) => setView(v)} />;
+    return (
+      <ChatList
+        token={token ?? ""}
+        currentUser={currentUser}
+        onOpenChat={openChat}
+        onNav={setView}
+      />
+    );
   }
 
   if (view === "activeChat") {
     return (
       <ActiveChat
         chatName={activeChatName}
-        messages={messages[activeChatName] ?? []}
-        onSend={(text, imageUrl) => sendMessage(activeChatName, text, imageUrl)}
+        token={token ?? ""}
+        currentUser={currentUser}
         onBack={() => setView("chatList")}
-        onNav={(v) => setView(v)}
+        onNav={setView}
       />
     );
   }
@@ -263,17 +197,29 @@ export default function App() {
     return (
       <ProfileView
         dpUrl={dpUrl}
-        onDpChange={setDpUrl}
+        onDpChange={(url) => {
+          setDpUrl(url);
+          if (currentUser) {
+            const updated = { ...currentUser, avatarUrl: url };
+            setCurrentUser(updated);
+            localStorage.setItem("chatme_user", serializeUser(updated));
+          }
+        }}
+        token={token ?? ""}
+        currentUser={currentUser}
         onBack={() => setView("home")}
-        onNav={(v) => setView(v)}
+        onNav={setView}
+        onLogout={handleLogout}
+        onUserUpdate={(updated) => {
+          setCurrentUser(updated);
+          localStorage.setItem("chatme_user", serializeUser(updated));
+        }}
       />
     );
   }
 
   if (view === "settings") {
-    return (
-      <SettingsView onBack={() => setView("home")} onNav={(v) => setView(v)} />
-    );
+    return <SettingsView onBack={() => setView("home")} onNav={setView} />;
   }
 
   return null;

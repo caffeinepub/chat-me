@@ -1,5 +1,6 @@
 import { useState } from "react";
 import type { View } from "../App";
+import type { PublicUser } from "../backend.d";
 import BottomNav from "./BottomNav";
 
 const chats = [
@@ -70,6 +71,8 @@ const chats = [
 ];
 
 interface ChatListProps {
+  token: string;
+  currentUser: PublicUser | null;
   onOpenChat: (name: string) => void;
   onNav: (v: View) => void;
 }

@@ -2,23 +2,35 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { useRef, useState } from "react";
 import type { View } from "../App";
+import type { PublicUser } from "../backend.d";
+import { getActor } from "../lib/actor";
 import BottomNav from "./BottomNav";
 
 interface ProfileViewProps {
   dpUrl: string | null;
   onDpChange: (url: string) => void;
+  token: string;
+  currentUser: PublicUser | null;
   onBack: () => void;
   onNav: (v: View) => void;
+  onLogout: () => void;
+  onUserUpdate: (user: PublicUser) => void;
 }
 
 export default function ProfileView({
   dpUrl,
   onDpChange,
+  token,
+  currentUser,
   onBack,
   onNav,
+  onLogout,
+  onUserUpdate,
 }: ProfileViewProps) {
-  const [name, setName] = useState("Lily' 🌸");
-  const [about, setAbout] = useState("Drawing cute things everyday 🎨");
+  const [name, setName] = useState(currentUser?.name ?? "🌸");
+  const [about, setAbout] = useState(
+    currentUser?.about ?? "Drawing cute things everyday 🎨",
+  );
   const [editingName, setEditingName] = useState(false);
   const [editingAbout, setEditingAbout] = useState(false);
   const [tempName, setTempName] = useState(name);
@@ -26,17 +38,56 @@ export default function ProfileView({
   const [lastSeen, setLastSeen] = useState(true);
   const [profilePhoto, setProfilePhoto] = useState(true);
   const [readReceipts, setReadReceipts] = useState(true);
+  const [saving, setSaving] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const handleDpClick = () => {
-    fileInputRef.current?.click();
-  };
+  const handleDpClick = () => fileInputRef.current?.click();
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
       const url = URL.createObjectURL(file);
       onDpChange(url);
+    }
+  };
+
+  const handleSaveName = async () => {
+    setSaving(true);
+    try {
+      const actor = await getActor();
+      await actor.updateProfile(
+        token,
+        tempName,
+        about,
+        currentUser?.avatarUrl ?? "",
+      );
+      setName(tempName);
+      setEditingName(false);
+      if (currentUser) onUserUpdate({ ...currentUser, name: tempName });
+    } catch {
+      // ignore
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleSaveAbout = async () => {
+    setSaving(true);
+    try {
+      const actor = await getActor();
+      await actor.updateProfile(
+        token,
+        name,
+        tempAbout,
+        currentUser?.avatarUrl ?? "",
+      );
+      setAbout(tempAbout);
+      setEditingAbout(false);
+      if (currentUser) onUserUpdate({ ...currentUser, about: tempAbout });
+    } catch {
+      // ignore
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -49,7 +100,6 @@ export default function ProfileView({
         paddingBottom: "80px",
       }}
     >
-      {/* Header */}
       <div
         className="flex items-center gap-3 px-4 py-3"
         style={{ background: "#FFFAF5", borderBottom: "1.5px solid #FFD1DC" }}
@@ -63,9 +113,18 @@ export default function ProfileView({
         >
           ←
         </button>
-        <h1 className="text-xl font-bold" style={{ color: "#FF8C9F" }}>
+        <h1 className="text-xl font-bold flex-1" style={{ color: "#FF8C9F" }}>
           Profile 🌸
         </h1>
+        <button
+          type="button"
+          onClick={onLogout}
+          data-ocid="profile.logout.button"
+          className="px-4 py-1.5 rounded-full text-xs font-bold transition-all hover:opacity-85"
+          style={{ background: "#FFD1DC", color: "#C0304A" }}
+        >
+          Logout 👋
+        </button>
       </div>
 
       <div className="flex flex-col items-center px-5 py-8 gap-6">
@@ -113,6 +172,15 @@ export default function ProfileView({
           />
         </div>
 
+        {currentUser && (
+          <div
+            className="px-5 py-2 rounded-full text-sm font-bold"
+            style={{ background: "#E8DFFF", color: "#7A5AF8" }}
+          >
+            Your ID: #{Number(currentUser.id)}
+          </div>
+        )}
+
         {/* Info card */}
         <div
           className="w-full max-w-md rounded-2xl p-5 flex flex-col gap-4"
@@ -122,7 +190,6 @@ export default function ProfileView({
             boxShadow: "0 4px 20px rgba(255,140,159,0.1)",
           }}
         >
-          {/* Name */}
           <div>
             <Label
               className="text-xs font-bold uppercase tracking-wider"
@@ -145,15 +212,13 @@ export default function ProfileView({
                 />
                 <button
                   type="button"
-                  onClick={() => {
-                    setName(tempName);
-                    setEditingName(false);
-                  }}
+                  onClick={handleSaveName}
+                  disabled={saving}
                   className="px-4 py-2 rounded-full text-xs font-bold text-white hover:opacity-85 transition-all"
-                  style={{ background: "#FF8C9F" }}
+                  style={{ background: saving ? "#FFB6C8" : "#FF8C9F" }}
                   data-ocid="profile.save_button"
                 >
-                  Save
+                  {saving ? "✿" : "Save"}
                 </button>
                 <button
                   type="button"
@@ -191,7 +256,6 @@ export default function ProfileView({
             )}
           </div>
 
-          {/* Phone */}
           <div>
             <Label
               className="text-xs font-bold uppercase tracking-wider"
@@ -203,11 +267,10 @@ export default function ProfileView({
               className="text-sm font-semibold mt-1"
               style={{ color: "#5A4E4E" }}
             >
-              +91 98765 43210
+              {currentUser?.phone ?? "+-- --- -----"}
             </p>
           </div>
 
-          {/* About */}
           <div>
             <Label
               className="text-xs font-bold uppercase tracking-wider"
@@ -230,15 +293,13 @@ export default function ProfileView({
                 />
                 <button
                   type="button"
-                  onClick={() => {
-                    setAbout(tempAbout);
-                    setEditingAbout(false);
-                  }}
+                  onClick={handleSaveAbout}
+                  disabled={saving}
                   className="px-4 py-2 rounded-full text-xs font-bold text-white hover:opacity-85 transition-all"
-                  style={{ background: "#FF8C9F" }}
+                  style={{ background: saving ? "#FFB6C8" : "#FF8C9F" }}
                   data-ocid="profile.about_save_button"
                 >
-                  Save
+                  {saving ? "✿" : "Save"}
                 </button>
                 <button
                   type="button"
@@ -274,7 +335,7 @@ export default function ProfileView({
           </div>
         </div>
 
-        {/* Privacy section */}
+        {/* Privacy */}
         <div
           className="w-full max-w-md rounded-2xl p-5 flex flex-col gap-4"
           style={{
@@ -286,7 +347,6 @@ export default function ProfileView({
           <h2 className="font-bold text-base" style={{ color: "#1E1E1E" }}>
             🔒 Privacy
           </h2>
-
           <div className="flex items-center justify-between">
             <Label
               className="text-sm font-semibold"
@@ -328,7 +388,24 @@ export default function ProfileView({
           </div>
         </div>
 
-        {/* Settings shortcut */}
+        {currentUser?.isAdmin && (
+          <button
+            type="button"
+            onClick={() => onNav("admin")}
+            data-ocid="profile.admin_panel.button"
+            className="w-full max-w-md flex items-center justify-between px-5 py-4 rounded-2xl transition-all hover:opacity-85"
+            style={{
+              background: "linear-gradient(135deg, #FFD1DC 0%, #E8DFFF 100%)",
+              border: "1.5px solid #FF8C9F",
+            }}
+          >
+            <span className="font-bold text-sm" style={{ color: "#FF8C9F" }}>
+              👑 Admin Panel
+            </span>
+            <span style={{ color: "#FF8C9F" }}>›</span>
+          </button>
+        )}
+
         <button
           type="button"
           onClick={() => onNav("settings")}
@@ -340,6 +417,18 @@ export default function ProfileView({
             ⚙️ Settings
           </span>
           <span style={{ color: "#FF8C9F" }}>›</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={onLogout}
+          data-ocid="profile.logout_bottom.button"
+          className="w-full max-w-md flex items-center justify-center gap-2 px-5 py-4 rounded-2xl transition-all hover:opacity-85"
+          style={{ background: "#FFF0F4", border: "1.5px solid #FFD1DC" }}
+        >
+          <span className="font-semibold text-sm" style={{ color: "#C0304A" }}>
+            👋 Logout
+          </span>
         </button>
       </div>
 

@@ -1,16 +1,19 @@
 import type { View } from "../App";
+import type { PublicUser } from "../backend.d";
 
 const navLinks = ["Home", "Explore", "Chat", "Create", "Account"];
 
 interface TopNavProps {
   activeTab?: string;
   dpUrl?: string | null;
+  currentUser?: PublicUser | null;
   onNav?: (tab: string) => void;
 }
 
 export default function TopNav({
   activeTab = "Home",
   dpUrl,
+  currentUser,
   onNav,
 }: TopNavProps) {
   return (
@@ -57,12 +60,26 @@ export default function TopNav({
               {link}
             </button>
           ))}
+          {currentUser?.isAdmin && (
+            <button
+              type="button"
+              data-ocid="nav.admin.link"
+              onClick={() => onNav?.("Admin")}
+              className="px-4 py-1.5 rounded-full text-sm font-semibold transition-all hover:opacity-80"
+              style={{
+                background: "linear-gradient(135deg, #FFD1DC 0%, #E8DFFF 100%)",
+                color: "#FF8C9F",
+              }}
+            >
+              👑 Admin
+            </button>
+          )}
         </div>
 
         {/* User area */}
         <div className="flex items-center gap-3">
           <span className="text-sm font-semibold" style={{ color: "#5A4E4E" }}>
-            Lily 🌸
+            {currentUser?.name ?? "Guest"} 🌸
           </span>
           <button
             type="button"
@@ -96,5 +113,4 @@ export default function TopNav({
     </nav>
   );
 }
-// re-export type for usage in other files
 export type { View };

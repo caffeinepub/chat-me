@@ -1,5 +1,7 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { Message, View } from "../App";
+import type { PublicUser } from "../backend.d";
+import { getActor } from "../lib/actor";
 import BottomNav from "./BottomNav";
 
 const senderGrad: Record<string, string> = {
@@ -27,7 +29,6 @@ const chatEmoji: Record<string, string> = {
 };
 
 const DOODLES = ["💕", "✨", "🌸", "⭐", "💫", "🎀", "💗", "🌟"];
-
 const GIF_EMOJIS = ["🐱", "💃", "🎉", "🌈", "🦄", "🍕", "🎨", "🌸"];
 const STICKERS = [
   "🌸",
@@ -46,19 +47,20 @@ const STICKERS = [
 
 interface ActiveChatProps {
   chatName: string;
-  messages: Message[];
-  onSend: (text: string, imageUrl?: string) => void;
+  token: string;
+  currentUser: PublicUser | null;
   onBack: () => void;
   onNav: (v: View) => void;
 }
 
 export default function ActiveChat({
   chatName,
-  messages,
-  onSend,
+  token,
+  currentUser,
   onBack,
   onNav,
 }: ActiveChatProps) {
+  const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [showEmoji, setShowEmoji] = useState(false);
   const [showMediaPicker, setShowMediaPicker] = useState(false);
@@ -69,13 +71,76 @@ export default function ActiveChat({
   const inputRef = useRef<HTMLInputElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const mediaPickerRef = useRef<HTMLDivElement>(null);
+  const lastCountRef = useRef(0);
+  const currentUserRef = useRef(currentUser);
+  currentUserRef.current = currentUser;
+
+  const backendToMessage = useCallback(
+    (m: {
+      id: bigint;
+      chatId: string;
+      senderId: bigint;
+      senderName: string;
+      text: string;
+      imageUrl: string;
+      timestamp: bigint;
+    }): Message => {
+      const isOwn = currentUserRef.current
+        ? m.senderId === currentUserRef.current.id
+        : false;
+      return {
+        id: Number(m.id),
+        sender: m.senderName,
+        side: isOwn ? "right" : "left",
+        text: m.text,
+        time: new Date(Number(m.timestamp) / 1_000_000).toLocaleTimeString([], {
+          hour: "2-digit",
+          minute: "2-digit",
+        }),
+        imageUrl: m.imageUrl || undefined,
+        status: isOwn ? "delivered" : undefined,
+      };
+    },
+    [],
+  );
+
+  useEffect(() => {
+    const load = async () => {
+      try {
+        const actor = await getActor();
+        const msgs = await actor.getMessages(chatName);
+        const converted = msgs.map(backendToMessage);
+        setMessages(converted);
+        lastCountRef.current = converted.length;
+      } catch {
+        // fallback
+      }
+    };
+    load();
+  }, [chatName, backendToMessage]);
+
+  useEffect(() => {
+    const interval = setInterval(async () => {
+      try {
+        const actor = await getActor();
+        const msgs = await actor.getMessages(chatName);
+        if (msgs.length !== lastCountRef.current) {
+          const converted = msgs.map(backendToMessage);
+          setMessages(converted);
+          lastCountRef.current = converted.length;
+        }
+      } catch {
+        // ignore
+      }
+    }, 3000);
+    return () => clearInterval(interval);
+  }, [chatName, backendToMessage]);
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: scroll on new messages
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages.length]);
 
-  // Close media picker on outside click
   useEffect(() => {
     if (!showMediaPicker) return;
     const handler = (e: MouseEvent) => {
@@ -90,28 +155,84 @@ export default function ActiveChat({
     return () => document.removeEventListener("mousedown", handler);
   }, [showMediaPicker]);
 
-  const handleSend = () => {
+  const handleSend = async () => {
     if (!input.trim()) return;
-    onSend(input.trim());
+    const text = input.trim();
     setInput("");
     setShowEmoji(false);
     inputRef.current?.focus();
+
+    const optimisticMsg: Message = {
+      id: Date.now(),
+      sender: currentUser?.name ?? "You",
+      side: "right",
+      text,
+      time: new Date().toLocaleTimeString([], {
+        hour: "2-digit",
+        minute: "2-digit",
+      }),
+      status: "sent",
+    };
+    setMessages((prev) => [...prev, optimisticMsg]);
+
+    try {
+      const actor = await getActor();
+      await actor.sendMessage(token, chatName, text, "");
+      const msgs = await actor.getMessages(chatName);
+      const converted = msgs.map(backendToMessage);
+      setMessages(converted);
+      lastCountRef.current = converted.length;
+    } catch {
+      // keep optimistic
+    }
   };
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
       const url = URL.createObjectURL(file);
-      onSend("", url);
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: Date.now(),
+          sender: currentUser?.name ?? "You",
+          side: "right",
+          text: "",
+          time: new Date().toLocaleTimeString([], {
+            hour: "2-digit",
+            minute: "2-digit",
+          }),
+          imageUrl: url,
+          status: "sent",
+        },
+      ]);
       setShowMediaPicker(false);
     }
-    // Reset so same file can be selected again
     e.target.value = "";
   };
 
-  const handleStickerSend = (sticker: string) => {
-    onSend(sticker);
+  const handleStickerSend = async (sticker: string) => {
     setShowMediaPicker(false);
+    setMessages((prev) => [
+      ...prev,
+      {
+        id: Date.now(),
+        sender: currentUser?.name ?? "You",
+        side: "right",
+        text: sticker,
+        time: new Date().toLocaleTimeString([], {
+          hour: "2-digit",
+          minute: "2-digit",
+        }),
+        status: "sent",
+      },
+    ]);
+    try {
+      const actor = await getActor();
+      await actor.sendMessage(token, chatName, sticker, "");
+    } catch {
+      // ignore
+    }
   };
 
   const quickEmojis = [
@@ -180,7 +301,7 @@ export default function ActiveChat({
         </button>
       </div>
 
-      {/* Wallpaper + messages */}
+      {/* Messages */}
       <div
         className="flex-1 overflow-y-auto px-4 py-4 flex flex-col gap-3 relative"
         style={{
@@ -188,15 +309,12 @@ export default function ActiveChat({
             "radial-gradient(circle at 15% 25%, #FFD1DC33 0%, transparent 40%)",
             "radial-gradient(circle at 85% 75%, #E8DFFF33 0%, transparent 40%)",
             "radial-gradient(circle at 50% 50%, #FFF0F833 0%, transparent 60%)",
-            "radial-gradient(circle at 30% 80%, #FFE6DB44 0%, transparent 35%)",
-            "radial-gradient(circle at 70% 20%, #F0E6FF33 0%, transparent 35%)",
           ].join(", "),
           backgroundColor: "#FFF5FB",
           minHeight: "calc(100vh - 200px)",
         }}
         data-ocid="activechat.list"
       >
-        {/* Decorative doodles */}
         <div
           className="absolute inset-0 pointer-events-none overflow-hidden"
           style={{ zIndex: 0 }}
@@ -219,9 +337,7 @@ export default function ActiveChat({
         {messages.map((msg, i) => (
           <div
             key={msg.id}
-            className={`flex gap-2 relative z-10 ${
-              msg.side === "right" ? "flex-row-reverse" : "flex-row"
-            }`}
+            className={`flex gap-2 relative z-10 ${msg.side === "right" ? "flex-row-reverse" : "flex-row"}`}
             data-ocid={`activechat.item.${i + 1}`}
           >
             {msg.side === "left" && (
@@ -231,9 +347,7 @@ export default function ActiveChat({
               />
             )}
             <div
-              className={`flex flex-col gap-0.5 max-w-[70%] ${
-                msg.side === "right" ? "items-end" : "items-start"
-              }`}
+              className={`flex flex-col gap-0.5 max-w-[70%] ${msg.side === "right" ? "items-end" : "items-start"}`}
             >
               {msg.side === "left" && (
                 <span
@@ -301,7 +415,7 @@ export default function ActiveChat({
         <div ref={messagesEndRef} />
       </div>
 
-      {/* Media picker popup */}
+      {/* Media picker */}
       {showMediaPicker && (
         <div
           ref={mediaPickerRef}
@@ -315,7 +429,6 @@ export default function ActiveChat({
           }}
           data-ocid="activechat.popover"
         >
-          {/* Tabs */}
           <div className="flex gap-2 mb-3">
             {(["image", "gif", "sticker"] as const).map((tab) => (
               <button
@@ -336,8 +449,6 @@ export default function ActiveChat({
               </button>
             ))}
           </div>
-
-          {/* Image tab */}
           {mediaTab === "image" && (
             <div className="flex flex-col items-center gap-2">
               <button
@@ -362,8 +473,6 @@ export default function ActiveChat({
               />
             </div>
           )}
-
-          {/* GIF tab */}
           {mediaTab === "gif" && (
             <div className="grid grid-cols-4 gap-2">
               {GIF_EMOJIS.map((gif) => (
@@ -372,18 +481,13 @@ export default function ActiveChat({
                   type="button"
                   onClick={() => handleStickerSend(gif)}
                   className="flex items-center justify-center h-12 rounded-xl hover:scale-125 transition-transform text-3xl"
-                  style={{
-                    background: "#FFF0F4",
-                    animation: "bounce 1s infinite",
-                  }}
+                  style={{ background: "#FFF0F4" }}
                 >
                   {gif}
                 </button>
               ))}
             </div>
           )}
-
-          {/* Sticker tab */}
           {mediaTab === "sticker" && (
             <div className="grid grid-cols-4 gap-2">
               {STICKERS.map((sticker) => (
@@ -402,7 +506,6 @@ export default function ActiveChat({
         </div>
       )}
 
-      {/* Emoji picker */}
       {showEmoji && (
         <div
           className="flex flex-wrap gap-2 px-4 py-3"
