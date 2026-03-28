@@ -92,8 +92,8 @@ persistent actor ChatMe {
   var sessionsStable: [(Text, UserId)] = [];
   var messagesStable: [(Nat, Message)] = [];
   var otpsStable: [(Text, Text)] = [];
-  // Fast2SMS API key - admin sets this via setApiKey()
-  var smsApiKey: Text = "";
+  // Fast2SMS API key - hardcoded
+  var smsApiKey: Text = "lhG9MtbPf62UDSqd4cQgOIBTFENXuJy3rjvKw0zaZxmLY1R7oe1EVYiqfSJO8nCR5DLG9FZQ432sg76I";
 
   func natHash(n: Nat): Nat32 { Nat32.fromNat(n % 4294967295) };
 
@@ -215,19 +215,13 @@ persistent actor ChatMe {
     let code = Nat.toText((seed % 900000) + 100000);
     otps.put(phone, code);
 
-    if (smsApiKey == "") {
-      // No API key set -- return code so admin can still test
-      return #ok(code);
-    };
-
-    // Send via Fast2SMS
+    // Send via Fast2SMS (API key is set)
     let sent = await sendSmsFast2sms(phone, code);
     if (sent) {
       #ok(""); // Don't expose OTP to frontend
     } else {
-      // SMS failed but OTP is stored; return error
-      otps.delete(phone);
-      #err("Failed to send SMS. Please check phone number and try again.");
+      // SMS failed - return OTP on screen as fallback
+      #ok(code);
     };
   };
 

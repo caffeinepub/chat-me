@@ -16,9 +16,10 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
 
   const [phone, setPhone] = useState("");
   const [otp, setOtp] = useState("");
-  const [pendingOtp, setPendingOtp] = useState(""); // only set when SMS not configured (demo mode)
+  const [pendingOtp, setPendingOtp] = useState(""); // demo mode: OTP shown on screen
+  const [localDemoOtp, setLocalDemoOtp] = useState(""); // local fallback OTP for offline verification
   const [isNewUser, setIsNewUser] = useState(false);
-  const [verifiedOtp, setVerifiedOtp] = useState(""); // store verified OTP for registration
+  const [verifiedOtp, setVerifiedOtp] = useState("");
 
   const [regName, setRegName] = useState("");
   const [regPin, setRegPin] = useState("");
@@ -57,6 +58,7 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
       if ("ok" in result) {
         // If result.ok is non-empty, SMS not configured -- show demo OTP
         setPendingOtp(result.ok);
+        setLocalDemoOtp(""); // backend handled it
         const registered = await actor.isPhoneRegistered(cleanPhone);
         setIsNewUser(!registered);
         setStep("otp");
@@ -68,10 +70,19 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
           setSuccessMsg(`OTP sent to ${cleanPhone} 📱`);
         }
       } else {
-        setError(result.err);
+        // Backend returned an error variant — show the actual message
+        setError(result.err || "Could not send OTP. Please try again 💔");
       }
     } catch {
-      setError("Something went wrong. Please try again 💔");
+      // Canister unreachable — fallback to pure local demo mode, assume new user
+      const localOtp = Math.floor(100000 + Math.random() * 900000).toString();
+      setPendingOtp(localOtp);
+      setLocalDemoOtp(localOtp);
+      setIsNewUser(true); // default to registration flow
+      setStep("otp");
+      setSuccessMsg(
+        "Demo mode: Cannot reach server, use the code shown below 📲",
+      );
     } finally {
       setLoading(false);
     }
@@ -86,9 +97,22 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
     setLoading(true);
     setError("");
     try {
+      // If we have a local demo OTP, verify it client-side
+      if (localDemoOtp) {
+        if (cleanOtp !== localDemoOtp) {
+          setError("Wrong OTP! Please check and try again ❌");
+          setLoading(false);
+          return;
+        }
+        setVerifiedOtp(cleanOtp);
+        // Always proceed to register-info in local demo mode
+        setStep("register-info");
+        setLoading(false);
+        return;
+      }
+
       const actor = await getActor();
       if (isNewUser) {
-        // Verify OTP locally (backend will re-verify during registerWithOtp)
         const valid = await actor.verifyOtp(phone.trim(), cleanOtp);
         if (valid) {
           setVerifiedOtp(cleanOtp);
@@ -98,7 +122,6 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
           setError("Wrong OTP! Please check and try again ❌");
         }
       } else {
-        // Existing user: login with OTP
         const result = await actor.loginWithOtp(phone.trim(), cleanOtp);
         if ("ok" in result) {
           onLogin(result.ok.token, result.ok.user);
@@ -107,7 +130,9 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
         }
       }
     } catch {
-      setError("Something went wrong. Please try again 💔");
+      setError(
+        "Verification failed. Please check your connection and try again 📡",
+      );
     } finally {
       setLoading(false);
     }
@@ -130,14 +155,48 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
     setError("");
     try {
       const actor = await getActor();
-      // Request a fresh OTP for final registration step
+
+      // In local demo mode we already have the verified OTP — use it directly
+      if (localDemoOtp) {
+        // Request a backend OTP so the canister has a valid entry to verify against
+        // If that also fails, use the already-verified OTP as a best-effort
+        let otpForReg = verifiedOtp;
+        try {
+          const otpResult = await actor.requestOtp(phone.trim());
+          if ("ok" in otpResult) {
+            otpForReg = otpResult.ok || verifiedOtp;
+          }
+        } catch {
+          // ignore — use verifiedOtp from local demo flow
+        }
+        const result = await actor.registerWithOtp(
+          phone.trim(),
+          otpForReg,
+          regName.trim(),
+          regPin.trim(),
+        );
+        if ("ok" in result) {
+          const token = result.ok.token;
+          const profileResult = await actor.getMyProfile(token);
+          if (profileResult && profileResult.length > 0) {
+            onLogin(token, profileResult[0] as PublicUser);
+          } else {
+            setStep("phone");
+            setSuccessMsg("Account created! Please login 🌸");
+          }
+        } else {
+          setError(`${result.err} ❌`);
+        }
+        return;
+      }
+
+      // Normal flow
       const otpResult = await actor.requestOtp(phone.trim());
       if (!("ok" in otpResult)) {
-        setError("Could not generate OTP. Please try again.");
+        setError(otpResult.err || "Could not generate OTP. Please try again.");
         setLoading(false);
         return;
       }
-      // Use the fresh OTP (demo mode: it's returned; real SMS mode: user already has it)
       const freshOtp = otpResult.ok || verifiedOtp;
       const result = await actor.registerWithOtp(
         phone.trim(),
@@ -158,7 +217,9 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
         setError(`${result.err} ❌`);
       }
     } catch {
-      setError("Something went wrong. Please try again 💔");
+      setError(
+        "Registration failed. Please check your connection and try again 📡",
+      );
     } finally {
       setLoading(false);
     }
@@ -169,6 +230,7 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
     setPhone("");
     setOtp("");
     setPendingOtp("");
+    setLocalDemoOtp("");
     setVerifiedOtp("");
     setError("");
     setSuccessMsg("");
@@ -276,6 +338,7 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
             <div
               className="px-4 py-3 rounded-2xl text-sm font-semibold text-center"
               style={{ background: "#FFD1DC", color: "#C0304A" }}
+              data-ocid="login.error_state"
             >
               {error}
             </div>
@@ -284,6 +347,7 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
             <div
               className="px-4 py-3 rounded-2xl text-sm font-semibold text-center"
               style={{ background: "#E8FFE8", color: "#2E8B57" }}
+              data-ocid="login.success_state"
             >
               {successMsg}
             </div>
@@ -307,6 +371,7 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
                 placeholder="+91 98765 43210"
                 style={inputStyle}
                 onKeyDown={(e) => e.key === "Enter" && handleSendOtp()}
+                data-ocid="login.input"
               />
               <button
                 type="button"
@@ -314,6 +379,7 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
                 disabled={loading}
                 className="w-full py-3 rounded-full text-white font-bold text-sm transition-all hover:opacity-85"
                 style={{ background: loading ? "#FFB6C8" : "#FF8C9F" }}
+                data-ocid="login.primary_button"
               >
                 {loading ? "✿ Sending OTP..." : "Send OTP via SMS 📨"}
               </button>
@@ -332,7 +398,7 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
                 </p>
               </div>
 
-              {/* Demo mode: show OTP when SMS not configured */}
+              {/* Demo mode: show OTP when SMS not configured or outcall failed */}
               {pendingOtp && (
                 <div
                   className="rounded-2xl p-4 text-center"
@@ -376,6 +442,7 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
                   }}
                   maxLength={6}
                   onKeyDown={(e) => e.key === "Enter" && handleVerifyOtp()}
+                  data-ocid="login.input"
                 />
               </div>
 
@@ -388,6 +455,7 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
                   background:
                     loading || otp.length !== 6 ? "#FFB6C8" : "#FF8C9F",
                 }}
+                data-ocid="login.primary_button"
               >
                 {loading
                   ? "✿ Verifying..."
@@ -406,6 +474,7 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
                   border: "none",
                   cursor: "pointer",
                 }}
+                data-ocid="login.cancel_button"
               >
                 ← Change phone number
               </button>
@@ -437,6 +506,7 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
                   onChange={(e) => setRegName(e.target.value)}
                   placeholder="Lily 🌸"
                   style={inputStyle}
+                  data-ocid="login.input"
                 />
               </div>
 
@@ -457,6 +527,7 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
                   placeholder="e.g. 1234"
                   style={inputStyle}
                   maxLength={6}
+                  data-ocid="login.input"
                 />
               </div>
 
@@ -480,6 +551,7 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
                   style={inputStyle}
                   maxLength={6}
                   onKeyDown={(e) => e.key === "Enter" && handleRegister()}
+                  data-ocid="login.input"
                 />
               </div>
 
@@ -489,6 +561,7 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
                 disabled={loading}
                 className="w-full py-3 rounded-full text-white font-bold text-sm transition-all hover:opacity-85"
                 style={{ background: loading ? "#FFB6C8" : "#FF8C9F" }}
+                data-ocid="login.submit_button"
               >
                 {loading ? "✿ Creating account..." : "Join Chat Me 🎀"}
               </button>
@@ -503,6 +576,7 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
                   border: "none",
                   cursor: "pointer",
                 }}
+                data-ocid="login.cancel_button"
               >
                 ← Start over
               </button>
