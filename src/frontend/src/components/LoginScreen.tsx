@@ -6,10 +6,7 @@ interface LoginScreenProps {
   onLogin: (token: string, user: PublicUser) => void;
 }
 
-type Step =
-  | "phone" // Enter phone
-  | "otp" // Enter OTP
-  | "register-info"; // New user: enter name + PIN
+type Step = "phone" | "otp" | "register-info";
 
 export default function LoginScreen({ onLogin }: LoginScreenProps) {
   const [step, setStep] = useState<Step>("phone");
@@ -19,11 +16,10 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
 
   const [phone, setPhone] = useState("");
   const [otp, setOtp] = useState("");
-  const [generatedOtp, setGeneratedOtp] = useState(""); // shown to user (demo)
+  const [pendingOtp, setPendingOtp] = useState(""); // only set when SMS not configured (demo mode)
   const [isNewUser, setIsNewUser] = useState(false);
-  const [_pendingToken, setPendingToken] = useState("");
+  const [verifiedOtp, setVerifiedOtp] = useState(""); // store verified OTP for registration
 
-  // Register info fields
   const [regName, setRegName] = useState("");
   const [regPin, setRegPin] = useState("");
   const [regPinConfirm, setRegPinConfirm] = useState("");
@@ -48,7 +44,7 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
       setError("Please enter your phone number 📱");
       return;
     }
-    if (cleanPhone.length < 6) {
+    if (cleanPhone.replace(/\D/g, "").length < 8) {
       setError("Please enter a valid phone number 📱");
       return;
     }
@@ -59,12 +55,18 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
       const actor = await getActor();
       const result = await actor.requestOtp(cleanPhone);
       if ("ok" in result) {
-        setGeneratedOtp(result.ok);
-        // Check if user is registered
+        // If result.ok is non-empty, SMS not configured -- show demo OTP
+        setPendingOtp(result.ok);
         const registered = await actor.isPhoneRegistered(cleanPhone);
         setIsNewUser(!registered);
         setStep("otp");
-        setSuccessMsg("");
+        if (result.ok) {
+          setSuccessMsg(
+            "Demo mode: OTP shown below (configure Fast2SMS API key for real SMS)",
+          );
+        } else {
+          setSuccessMsg(`OTP sent to ${cleanPhone} 📱`);
+        }
       } else {
         setError(result.err);
       }
@@ -86,8 +88,10 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
     try {
       const actor = await getActor();
       if (isNewUser) {
-        // New user: just verify OTP format, proceed to register-info
-        if (cleanOtp === generatedOtp) {
+        // Verify OTP locally (backend will re-verify during registerWithOtp)
+        const valid = await actor.verifyOtp(phone.trim(), cleanOtp);
+        if (valid) {
+          setVerifiedOtp(cleanOtp);
           setStep("register-info");
           setError("");
         } else {
@@ -126,14 +130,15 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
     setError("");
     try {
       const actor = await getActor();
-      // Re-request OTP to get a fresh one for final registration
+      // Request a fresh OTP for final registration step
       const otpResult = await actor.requestOtp(phone.trim());
       if (!("ok" in otpResult)) {
         setError("Could not generate OTP. Please try again.");
         setLoading(false);
         return;
       }
-      const freshOtp = otpResult.ok;
+      // Use the fresh OTP (demo mode: it's returned; real SMS mode: user already has it)
+      const freshOtp = otpResult.ok || verifiedOtp;
       const result = await actor.registerWithOtp(
         phone.trim(),
         freshOtp,
@@ -141,15 +146,11 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
         regPin.trim(),
       );
       if ("ok" in result) {
-        // Auto-login after registration
-        const _loginResult = await actor.loginWithOtp(phone.trim(), "");
-        // loginWithOtp with empty otp won't work, use getMyProfile with token
         const token = result.ok.token;
         const profileResult = await actor.getMyProfile(token);
         if (profileResult && profileResult.length > 0) {
           onLogin(token, profileResult[0] as PublicUser);
         } else {
-          // Fallback: go back to login
           setStep("phone");
           setSuccessMsg("Account created! Please login 🌸");
         }
@@ -167,13 +168,13 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
     setStep("phone");
     setPhone("");
     setOtp("");
-    setGeneratedOtp("");
+    setPendingOtp("");
+    setVerifiedOtp("");
     setError("");
     setSuccessMsg("");
     setRegName("");
     setRegPin("");
     setRegPinConfirm("");
-    setPendingToken("");
   };
 
   return (
@@ -185,7 +186,6 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
         fontFamily: "'Quicksand', sans-serif",
       }}
     >
-      {/* Background doodles */}
       <div
         className="fixed inset-0 pointer-events-none overflow-hidden"
         style={{ zIndex: 0 }}
@@ -272,7 +272,6 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
             ))}
           </div>
 
-          {/* Error/Success messages */}
           {error && (
             <div
               className="px-4 py-3 rounded-2xl text-sm font-semibold text-center"
@@ -298,7 +297,7 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
                   📱 Enter your phone number
                 </p>
                 <p className="text-xs mt-1" style={{ color: "#7A6E6E" }}>
-                  We'll send you a verification code
+                  We'll send you a verification code via SMS
                 </p>
               </div>
               <input
@@ -316,7 +315,7 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
                 className="w-full py-3 rounded-full text-white font-bold text-sm transition-all hover:opacity-85"
                 style={{ background: loading ? "#FFB6C8" : "#FF8C9F" }}
               >
-                {loading ? "✿ Sending OTP..." : "Send OTP 📨"}
+                {loading ? "✿ Sending OTP..." : "Send OTP via SMS 📨"}
               </button>
             </div>
           )}
@@ -333,29 +332,29 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
                 </p>
               </div>
 
-              {/* OTP Display Box (since we can't send real SMS) */}
-              {generatedOtp && (
+              {/* Demo mode: show OTP when SMS not configured */}
+              {pendingOtp && (
                 <div
                   className="rounded-2xl p-4 text-center"
                   style={{
-                    background: "linear-gradient(135deg, #FFE8F5, #EDE8FF)",
-                    border: "1.5px dashed #FF8C9F",
+                    background: "linear-gradient(135deg, #FFF9E6, #FFF3D0)",
+                    border: "1.5px dashed #FFB347",
                   }}
                 >
                   <p
                     className="text-xs font-semibold"
-                    style={{ color: "#7A6E6E" }}
+                    style={{ color: "#B8860B" }}
                   >
-                    Your OTP code is:
+                    ⚠️ Demo Mode — SMS not configured
+                  </p>
+                  <p className="text-xs mt-1" style={{ color: "#7A6E6E" }}>
+                    Your OTP (admin sets Fast2SMS key to enable real SMS):
                   </p>
                   <p
                     className="text-3xl font-bold tracking-[0.3em] mt-1"
                     style={{ color: "#FF8C9F", fontFamily: "monospace" }}
                   >
-                    {generatedOtp}
-                  </p>
-                  <p className="text-xs mt-2" style={{ color: "#aaa" }}>
-                    Enter this code below ↓
+                    {pendingOtp}
                   </p>
                 </div>
               )}
@@ -413,7 +412,7 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
             </div>
           )}
 
-          {/* STEP 3: Register Info (new users only) */}
+          {/* STEP 3: Register Info */}
           {step === "register-info" && (
             <div className="flex flex-col gap-4">
               <div className="text-center">

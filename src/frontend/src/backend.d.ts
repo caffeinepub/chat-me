@@ -61,4 +61,6 @@ export interface backendInterface {
     sendMessage(token: string, chatId: string, text: string, imageUrl: string): Promise<[] | [bigint]>;
     getMessages(chatId: string): Promise<Message[]>;
     adminGetStats(token: string): Promise<[] | [AdminStats]>;
+    setApiKey(token: string, apiKey: string): Promise<boolean>;
+    isSmsConfigured(): Promise<boolean>;
 }

@@ -7,6 +7,8 @@ import Time "mo:base/Time";
 import Iter "mo:base/Iter";
 import Option "mo:base/Option";
 import Buffer "mo:base/Buffer";
+import Blob "mo:base/Blob";
+import Cycles "mo:base/ExperimentalCycles";
 
 persistent actor ChatMe {
 
@@ -58,6 +60,31 @@ persistent actor ChatMe {
     #err: Text;
   };
 
+  // IC management canister types for HTTP outcalls
+  type HttpRequestArgs = {
+    url: Text;
+    max_response_bytes: ?Nat64;
+    headers: [{ name: Text; value: Text }];
+    body: ?Blob;
+    method: { #get; #post; #head };
+    transform: ?{
+      function: shared query ({ response: HttpResponsePayload; context: Blob }) -> async HttpResponsePayload;
+      context: Blob;
+    };
+  };
+
+  type HttpResponsePayload = {
+    status: Nat;
+    headers: [{ name: Text; value: Text }];
+    body: Blob;
+  };
+
+  type IC = actor {
+    http_request: HttpRequestArgs -> async HttpResponsePayload;
+  };
+
+  let ic: IC = actor ("aaaaa-aa");
+
   // Stable storage
   var nextUserId: Nat = 1;
   var nextMsgId: Nat = 1;
@@ -65,6 +92,8 @@ persistent actor ChatMe {
   var sessionsStable: [(Text, UserId)] = [];
   var messagesStable: [(Nat, Message)] = [];
   var otpsStable: [(Text, Text)] = [];
+  // Fast2SMS API key - admin sets this via setApiKey()
+  var smsApiKey: Text = "";
 
   func natHash(n: Nat): Nat32 { Nat32.fromNat(n % 4294967295) };
 
@@ -111,16 +140,95 @@ persistent actor ChatMe {
     };
   };
 
-  // Generate a 6-digit OTP for a phone number
-  // Since we can't send SMS from ICP, the OTP is returned to display on screen
+  // Strip country code and return only digits for Fast2SMS
+  func cleanPhone(phone: Text): Text {
+    // Remove +91, 91 prefix for Indian numbers; keep last 10 digits
+    let chars = Iter.toArray(Text.toIter(phone));
+    var digits = "";
+    for (c in chars.vals()) {
+      if (c >= '0' and c <= '9') {
+        digits := digits # Text.fromChar(c);
+      };
+    };
+    // If 12 digits and starts with 91, strip prefix
+    if (digits.size() == 12) {
+      // Take last 10
+      let arr = Iter.toArray(Text.toIter(digits));
+      var last10 = "";
+      var i = 2;
+      while (i < 12) {
+        last10 := last10 # Text.fromChar(arr[i]);
+        i += 1;
+      };
+      return last10;
+    };
+    digits;
+  };
+
+  // Send OTP via Fast2SMS HTTP outcall
+  func sendSmsFast2sms(phone: Text, otp: Text): async Bool {
+    let cleanNum = cleanPhone(phone);
+    let url = "https://www.fast2sms.com/dev/bulkV2?authorization=" # smsApiKey # "&variables_values=" # otp # "&route=otp&numbers=" # cleanNum;
+    try {
+      Cycles.add<system>(20_000_000_000);
+      let response = await ic.http_request({
+        url = url;
+        max_response_bytes = ?2000;
+        headers = [
+          { name = "User-Agent"; value = "ChatMe/1.0" }
+        ];
+        body = null;
+        method = #get;
+        transform = null;
+      });
+      response.status == 200;
+    } catch (_) {
+      false;
+    };
+  };
+
+  // Set Fast2SMS API key (admin only)
+  public func setApiKey(token: Text, apiKey: Text): async Bool {
+    switch (getUserByToken(token)) {
+      case null false;
+      case (?u) {
+        if (not u.isAdmin) return false;
+        smsApiKey := apiKey;
+        true;
+      };
+    };
+  };
+
+  // Get whether SMS API key is configured
+  public query func isSmsConfigured(): async Bool {
+    smsApiKey != "";
+  };
+
+  // Generate and send a 6-digit OTP via Fast2SMS
+  // Returns #ok("") on success (OTP not exposed to frontend)
+  // Returns #err if SMS fails or API key not set
   public func requestOtp(phone: Text): async OtpResult {
     if (phone == "") return #err("Phone number required");
-    // Generate pseudo-random 6-digit OTP based on time and phone hash
+    // Generate pseudo-random 6-digit OTP
     let timeSlot : Nat = if (Time.now() > 0) { Nat32.toNat(Nat32.fromIntWrap(Time.now() / 1_000_000_000 / 30)) } else { 0 };
     let seed = Nat32.toNat(Text.hash(phone)) + (timeSlot % 1000000);
     let code = Nat.toText((seed % 900000) + 100000);
     otps.put(phone, code);
-    #ok(code);
+
+    if (smsApiKey == "") {
+      // No API key set -- return code so admin can still test
+      return #ok(code);
+    };
+
+    // Send via Fast2SMS
+    let sent = await sendSmsFast2sms(phone, code);
+    if (sent) {
+      #ok(""); // Don't expose OTP to frontend
+    } else {
+      // SMS failed but OTP is stored; return error
+      otps.delete(phone);
+      #err("Failed to send SMS. Please check phone number and try again.");
+    };
   };
 
   // Verify OTP - returns true if correct, removes OTP after use
@@ -141,7 +249,6 @@ persistent actor ChatMe {
   // Register with OTP verification
   public func registerWithOtp(phone: Text, otp: Text, name: Text, pin: Text): async RegisterResult {
     if (phone == "" or otp == "" or name == "" or pin == "") return #err("All fields required");
-    // Verify OTP
     switch (otps.get(phone)) {
       case null return #err("OTP expired or not requested. Please request a new OTP");
       case (?stored) {
@@ -174,7 +281,6 @@ persistent actor ChatMe {
   // Login with OTP verification
   public func loginWithOtp(phone: Text, otp: Text): async LoginResult {
     if (phone == "" or otp == "") return #err("All fields required");
-    // Verify OTP
     switch (otps.get(phone)) {
       case null return #err("OTP expired or not requested. Please request a new OTP");
       case (?stored) {
@@ -192,7 +298,6 @@ persistent actor ChatMe {
     };
   };
 
-  // Check if a phone number is registered
   public query func isPhoneRegistered(phone: Text): async Bool {
     switch (usersByPhone.get(phone)) {
       case null false;
@@ -285,7 +390,6 @@ persistent actor ChatMe {
     };
   };
 
-  // Legacy login/register kept for backward compat
   public func register(phone: Text, pin: Text, name: Text): async RegisterResult {
     if (phone == "" or pin == "" or name == "") return #err("All fields required");
     switch (usersByPhone.get(phone)) {
