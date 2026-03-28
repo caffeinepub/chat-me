@@ -36,6 +36,19 @@ export type Message = {
   status?: "sent" | "delivered" | "read";
 };
 
+const HOME_THEMES: Record<string, string> = {
+  default: "linear-gradient(135deg, #FFF0F5 0%, #EDE8FF 50%, #FFE8F5 100%)",
+  "dark-purple":
+    "linear-gradient(135deg, #2D1B4E 0%, #4A2C6B 50%, #3B1F5A 100%)",
+  "dark-blue": "linear-gradient(135deg, #0F1B3D 0%, #1A2C5E 50%, #142244 100%)",
+  "dark-pink": "linear-gradient(135deg, #3D1425 0%, #6B2040 50%, #4A1530 100%)",
+  "neon-cute":
+    "linear-gradient(135deg, #1A0533 0%, #2D0E5C 30%, #1A2050 60%, #0D3340 100%)",
+  forest: "linear-gradient(135deg, #0A2A1A 0%, #1A4A2A 50%, #0D3320 100%)",
+  sunset:
+    "linear-gradient(135deg, #FF6B35 0%, #F7931E 30%, #FFD700 60%, #FF6B9D 100%)",
+};
+
 const serializeUser = (user: PublicUser): string => {
   return JSON.stringify(user, (_, value) =>
     typeof value === "bigint" ? `__bigint__${value.toString()}` : value,
@@ -57,6 +70,9 @@ export default function App() {
   const [dpUrl, setDpUrl] = useState<string | null>(null);
   const [token, setToken] = useState<string | null>(null);
   const [currentUser, setCurrentUser] = useState<PublicUser | null>(null);
+  const [homeTheme, setHomeTheme] = useState<string>(
+    () => localStorage.getItem("chatme_home_theme") || "default",
+  );
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -105,6 +121,11 @@ export default function App() {
     setView("login");
   };
 
+  const handleHomeThemeChange = (theme: string) => {
+    setHomeTheme(theme);
+    localStorage.setItem("chatme_home_theme", theme);
+  };
+
   const openChat = (chatName: string) => {
     setActiveChatName(chatName);
     setView("activeChat");
@@ -124,8 +145,7 @@ export default function App() {
       <div
         className="min-h-screen flex flex-col"
         style={{
-          background:
-            "linear-gradient(135deg, #FFF0F5 0%, #EDE8FF 50%, #FFE8F5 100%)",
+          background: HOME_THEMES[homeTheme] ?? HOME_THEMES.default,
           minWidth: "1200px",
           fontFamily: "'Quicksand', sans-serif",
         }}
@@ -146,7 +166,7 @@ export default function App() {
           style={{ minWidth: "1200px" }}
         >
           <LeftSidebar onOpenChat={openChat} />
-          <CentralDashboard onJoinChat={openChat} />
+          <CentralDashboard onJoinChat={openChat} currentUser={currentUser} />
           <ChatPanel
             chatName="Art Buddies"
             messages={[]}
@@ -219,7 +239,14 @@ export default function App() {
   }
 
   if (view === "settings") {
-    return <SettingsView onBack={() => setView("home")} onNav={setView} />;
+    return (
+      <SettingsView
+        onBack={() => setView("home")}
+        onNav={setView}
+        homeTheme={homeTheme}
+        onHomeThemeChange={handleHomeThemeChange}
+      />
+    );
   }
 
   return null;

@@ -13,7 +13,8 @@ type SubScreen =
   | "wallpaper"
   | "backup"
   | "font-size"
-  | "tones";
+  | "tones"
+  | "home-theme";
 
 const wallpapers = [
   {
@@ -38,6 +39,94 @@ const wallpapers = [
   },
 ];
 
+const homeThemes = [
+  {
+    id: "default",
+    label: "Light Pastel 🌸",
+    bg: "linear-gradient(135deg, #FFF0F5 0%, #EDE8FF 50%, #FFE8F5 100%)",
+  },
+  {
+    id: "dark-purple",
+    label: "Deep Purple 💜",
+    bg: "linear-gradient(135deg, #2D1B4E 0%, #4A2C6B 50%, #3B1F5A 100%)",
+  },
+  {
+    id: "dark-blue",
+    label: "Midnight Blue 🌌",
+    bg: "linear-gradient(135deg, #0F1B3D 0%, #1A2C5E 50%, #142244 100%)",
+  },
+  {
+    id: "dark-pink",
+    label: "Dark Rose 🌹",
+    bg: "linear-gradient(135deg, #3D1425 0%, #6B2040 50%, #4A1530 100%)",
+  },
+  {
+    id: "neon-cute",
+    label: "Galaxy Dark 🌠",
+    bg: "linear-gradient(135deg, #1A0533 0%, #2D0E5C 30%, #1A2050 60%, #0D3340 100%)",
+  },
+  {
+    id: "forest",
+    label: "Dark Forest 🌿",
+    bg: "linear-gradient(135deg, #0A2A1A 0%, #1A4A2A 50%, #0D3320 100%)",
+  },
+  {
+    id: "sunset",
+    label: "Vibrant Sunset 🌅",
+    bg: "linear-gradient(135deg, #FF6B35 0%, #F7931E 30%, #FFD700 60%, #FF6B9D 100%)",
+  },
+  {
+    id: "cotton-candy",
+    label: "Cotton Candy 🍭",
+    bg: "linear-gradient(135deg, #FFB3DE 0%, #B3D9FF 50%, #FFB3F7 100%)",
+  },
+  {
+    id: "sakura",
+    label: "Sakura Bloom 🌸",
+    bg: "linear-gradient(135deg, #FFD6E8 0%, #FFADC7 50%, #FF85A8 100%)",
+  },
+  {
+    id: "mint-dream",
+    label: "Mint Dream 🍃",
+    bg: "linear-gradient(135deg, #A8F5D3 0%, #C8F5E8 50%, #B8E8FF 100%)",
+  },
+  {
+    id: "lavender",
+    label: "Lavender Fields 💜",
+    bg: "linear-gradient(135deg, #E8CCFF 0%, #D4A8FF 50%, #F5CCFF 100%)",
+  },
+  {
+    id: "peach-blossom",
+    label: "Peach Blossom 🍑",
+    bg: "linear-gradient(135deg, #FFD9A8 0%, #FFBFA8 50%, #FFD1DC 100%)",
+  },
+  {
+    id: "bubblegum",
+    label: "Bubblegum 🫧",
+    bg: "linear-gradient(135deg, #FF6EB4 0%, #FF94C8 50%, #FFB3DC 100%)",
+  },
+  {
+    id: "rainbow-sherbet",
+    label: "Rainbow Sherbet 🌈",
+    bg: "linear-gradient(135deg, #FFB3BA 0%, #FFDFBA 30%, #FFFFBA 50%, #BAFFBA 70%, #BAE8FF 100%)",
+  },
+  {
+    id: "strawberry-milk",
+    label: "Strawberry Milk 🍓",
+    bg: "linear-gradient(135deg, #FFE4EC 0%, #FFB3C8 50%, #FFDDE8 100%)",
+  },
+  {
+    id: "sky-candy",
+    label: "Sky Candy ☁️",
+    bg: "linear-gradient(135deg, #A8D8FF 0%, #C8EAFF 50%, #E8D4FF 100%)",
+  },
+  {
+    id: "honey-bee",
+    label: "Honey Bee 🍯",
+    bg: "linear-gradient(135deg, #FFE066 0%, #FFB347 50%, #FFF0A0 100%)",
+  },
+];
+
 const tones = [
   "Chirp 🎵",
   "Bubble Pop 🫧",
@@ -51,9 +140,16 @@ const SETTINGS_BG = "linear-gradient(160deg, #FFF5FA 0%, #E8F0FF 100%)";
 interface SettingsViewProps {
   onBack: () => void;
   onNav: (v: View) => void;
+  homeTheme: string;
+  onHomeThemeChange: (theme: string) => void;
 }
 
-export default function SettingsView({ onBack, onNav }: SettingsViewProps) {
+export default function SettingsView({
+  onBack,
+  onNav,
+  homeTheme,
+  onHomeThemeChange,
+}: SettingsViewProps) {
   const [subScreen, setSubScreen] = useState<SubScreen>(null);
   const [msgNotif, setMsgNotif] = useState(true);
   const [groupNotif, setGroupNotif] = useState(true);
@@ -102,6 +198,26 @@ export default function SettingsView({ onBack, onNav }: SettingsViewProps) {
     </button>
   );
 
+  const backHeader = (title: string) => (
+    <div
+      className="flex items-center gap-3 px-4 py-3"
+      style={{ background: "#FFFAF5", borderBottom: "1.5px solid #FFD1DC" }}
+    >
+      <button
+        type="button"
+        onClick={() => setSubScreen(null)}
+        data-ocid="settings.back.button"
+        className="w-9 h-9 rounded-full flex items-center justify-center font-bold text-xl hover:opacity-70 transition-all"
+        style={{ background: "#FFF0F4", color: "#FF8C9F" }}
+      >
+        ←
+      </button>
+      <h1 className="text-xl font-bold" style={{ color: "#FF8C9F" }}>
+        {title}
+      </h1>
+    </div>
+  );
+
   if (subScreen === "privacy") {
     return (
       <div
@@ -112,23 +228,7 @@ export default function SettingsView({ onBack, onNav }: SettingsViewProps) {
           paddingBottom: "80px",
         }}
       >
-        <div
-          className="flex items-center gap-3 px-4 py-3"
-          style={{ background: "#FFFAF5", borderBottom: "1.5px solid #FFD1DC" }}
-        >
-          <button
-            type="button"
-            onClick={() => setSubScreen(null)}
-            data-ocid="settings.back.button"
-            className="w-9 h-9 rounded-full flex items-center justify-center font-bold text-xl hover:opacity-70 transition-all"
-            style={{ background: "#FFF0F4", color: "#FF8C9F" }}
-          >
-            ←
-          </button>
-          <h1 className="text-xl font-bold" style={{ color: "#FF8C9F" }}>
-            Privacy 🔒
-          </h1>
-        </div>
+        {backHeader("Privacy 🔒")}
         <div className="flex flex-col items-center px-5 py-6 gap-4">
           {sectionCard(
             <>
@@ -195,23 +295,7 @@ export default function SettingsView({ onBack, onNav }: SettingsViewProps) {
           paddingBottom: "80px",
         }}
       >
-        <div
-          className="flex items-center gap-3 px-4 py-3"
-          style={{ background: "#FFFAF5", borderBottom: "1.5px solid #FFD1DC" }}
-        >
-          <button
-            type="button"
-            onClick={() => setSubScreen(null)}
-            data-ocid="settings.back.button"
-            className="w-9 h-9 rounded-full flex items-center justify-center font-bold text-xl hover:opacity-70 transition-all"
-            style={{ background: "#FFF0F4", color: "#FF8C9F" }}
-          >
-            ←
-          </button>
-          <h1 className="text-xl font-bold" style={{ color: "#FF8C9F" }}>
-            Security 🔐
-          </h1>
-        </div>
+        {backHeader("Security 🔐")}
         <div className="flex flex-col items-center px-5 py-8">
           <div
             className="w-full max-w-md rounded-2xl p-6 text-center"
@@ -250,23 +334,7 @@ export default function SettingsView({ onBack, onNav }: SettingsViewProps) {
           paddingBottom: "80px",
         }}
       >
-        <div
-          className="flex items-center gap-3 px-4 py-3"
-          style={{ background: "#FFFAF5", borderBottom: "1.5px solid #FFD1DC" }}
-        >
-          <button
-            type="button"
-            onClick={() => setSubScreen(null)}
-            data-ocid="settings.back.button"
-            className="w-9 h-9 rounded-full flex items-center justify-center font-bold text-xl hover:opacity-70 transition-all"
-            style={{ background: "#FFF0F4", color: "#FF8C9F" }}
-          >
-            ←
-          </button>
-          <h1 className="text-xl font-bold" style={{ color: "#FF8C9F" }}>
-            Change Number 📱
-          </h1>
-        </div>
+        {backHeader("Change Number 📱")}
         <div className="flex flex-col items-center px-5 py-8 gap-4">
           <div
             className="w-full max-w-md rounded-2xl p-6 flex flex-col gap-4"
@@ -313,23 +381,7 @@ export default function SettingsView({ onBack, onNav }: SettingsViewProps) {
           paddingBottom: "80px",
         }}
       >
-        <div
-          className="flex items-center gap-3 px-4 py-3"
-          style={{ background: "#FFFAF5", borderBottom: "1.5px solid #FFD1DC" }}
-        >
-          <button
-            type="button"
-            onClick={() => setSubScreen(null)}
-            data-ocid="settings.back.button"
-            className="w-9 h-9 rounded-full flex items-center justify-center font-bold text-xl hover:opacity-70 transition-all"
-            style={{ background: "#FFF0F4", color: "#FF8C9F" }}
-          >
-            ←
-          </button>
-          <h1 className="text-xl font-bold" style={{ color: "#FF8C9F" }}>
-            Wallpaper 🖼️
-          </h1>
-        </div>
+        {backHeader("Wallpaper 🖼️")}
         <div className="flex flex-col items-center px-5 py-6 gap-4">
           <div className="grid grid-cols-2 gap-4 w-full max-w-md">
             {wallpapers.map((w, i) => (
@@ -368,6 +420,60 @@ export default function SettingsView({ onBack, onNav }: SettingsViewProps) {
     );
   }
 
+  if (subScreen === "home-theme") {
+    return (
+      <div
+        className="min-h-screen flex flex-col"
+        style={{
+          background: SETTINGS_BG,
+          fontFamily: "'Quicksand', sans-serif",
+          paddingBottom: "80px",
+        }}
+      >
+        {backHeader("Home Theme 🎨")}
+        <div className="flex flex-col items-center px-5 py-6 gap-4">
+          <p
+            className="text-xs font-semibold w-full max-w-md"
+            style={{ color: "#5A4E4E" }}
+          >
+            Choose a background theme for your home screen
+          </p>
+          <div className="grid grid-cols-2 gap-4 w-full max-w-md">
+            {homeThemes.map((t, i) => (
+              <button
+                key={t.id}
+                type="button"
+                onClick={() => {
+                  onHomeThemeChange(t.id);
+                }}
+                data-ocid={`settings.home_theme.item.${i + 1}`}
+                className="flex flex-col gap-2 p-3 rounded-2xl transition-all hover:opacity-85"
+                style={{
+                  background: "#FFFAF5",
+                  border:
+                    homeTheme === t.id
+                      ? "2.5px solid #FF8C9F"
+                      : "1.5px solid #FFD1DC",
+                  boxShadow: homeTheme === t.id ? "0 0 12px #FF8C9F44" : "none",
+                }}
+              >
+                <div className="h-20 rounded-xl" style={{ background: t.bg }} />
+                <span
+                  className="text-xs font-semibold text-left"
+                  style={{ color: homeTheme === t.id ? "#FF8C9F" : "#5A4E4E" }}
+                >
+                  {homeTheme === t.id ? "✓ " : ""}
+                  {t.label}
+                </span>
+              </button>
+            ))}
+          </div>
+        </div>
+        <BottomNav active="account" onNav={onNav} />
+      </div>
+    );
+  }
+
   if (subScreen === "backup") {
     return (
       <div
@@ -378,23 +484,7 @@ export default function SettingsView({ onBack, onNav }: SettingsViewProps) {
           paddingBottom: "80px",
         }}
       >
-        <div
-          className="flex items-center gap-3 px-4 py-3"
-          style={{ background: "#FFFAF5", borderBottom: "1.5px solid #FFD1DC" }}
-        >
-          <button
-            type="button"
-            onClick={() => setSubScreen(null)}
-            data-ocid="settings.back.button"
-            className="w-9 h-9 rounded-full flex items-center justify-center font-bold text-xl hover:opacity-70 transition-all"
-            style={{ background: "#FFF0F4", color: "#FF8C9F" }}
-          >
-            ←
-          </button>
-          <h1 className="text-xl font-bold" style={{ color: "#FF8C9F" }}>
-            Chat Backup ☁️
-          </h1>
-        </div>
+        {backHeader("Chat Backup ☁️")}
         <div className="flex flex-col items-center px-5 py-8">
           <div
             className="w-full max-w-md rounded-2xl p-6 text-center"
@@ -432,23 +522,7 @@ export default function SettingsView({ onBack, onNav }: SettingsViewProps) {
           paddingBottom: "80px",
         }}
       >
-        <div
-          className="flex items-center gap-3 px-4 py-3"
-          style={{ background: "#FFFAF5", borderBottom: "1.5px solid #FFD1DC" }}
-        >
-          <button
-            type="button"
-            onClick={() => setSubScreen(null)}
-            data-ocid="settings.back.button"
-            className="w-9 h-9 rounded-full flex items-center justify-center font-bold text-xl hover:opacity-70 transition-all"
-            style={{ background: "#FFF0F4", color: "#FF8C9F" }}
-          >
-            ←
-          </button>
-          <h1 className="text-xl font-bold" style={{ color: "#FF8C9F" }}>
-            Font Size 🔤
-          </h1>
-        </div>
+        {backHeader("Font Size 🔤")}
         <div className="flex flex-col items-center px-5 py-8 gap-6">
           <div
             className="w-full max-w-md rounded-2xl p-6 flex flex-col gap-6"
@@ -501,23 +575,7 @@ export default function SettingsView({ onBack, onNav }: SettingsViewProps) {
           paddingBottom: "80px",
         }}
       >
-        <div
-          className="flex items-center gap-3 px-4 py-3"
-          style={{ background: "#FFFAF5", borderBottom: "1.5px solid #FFD1DC" }}
-        >
-          <button
-            type="button"
-            onClick={() => setSubScreen(null)}
-            data-ocid="settings.back.button"
-            className="w-9 h-9 rounded-full flex items-center justify-center font-bold text-xl hover:opacity-70 transition-all"
-            style={{ background: "#FFF0F4", color: "#FF8C9F" }}
-          >
-            ←
-          </button>
-          <h1 className="text-xl font-bold" style={{ color: "#FF8C9F" }}>
-            Custom Tones 🎵
-          </h1>
-        </div>
+        {backHeader("Custom Tones 🎵")}
         <div className="flex flex-col items-center px-5 py-6">
           {sectionCard(
             tones.map((tone, i) => (
@@ -640,6 +698,12 @@ export default function SettingsView({ onBack, onNav }: SettingsViewProps) {
                 "Font Size",
                 () => setSubScreen("font-size"),
                 "settings.font_size.button",
+              )}
+              {settingRow(
+                "🎨",
+                "Home Theme",
+                () => setSubScreen("home-theme"),
+                "settings.home_theme.button",
                 true,
               )}
             </>,

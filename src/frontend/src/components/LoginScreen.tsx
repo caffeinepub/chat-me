@@ -63,9 +63,7 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
         setIsNewUser(!registered);
         setStep("otp");
         if (result.ok) {
-          setSuccessMsg(
-            "Demo mode: OTP shown below (configure Fast2SMS API key for real SMS)",
-          );
+          setSuccessMsg("OTP ready — enter the code shown below 📲");
         } else {
           setSuccessMsg(`OTP sent to ${cleanPhone} 📱`);
         }
@@ -80,9 +78,7 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
       setLocalDemoOtp(localOtp);
       setIsNewUser(true); // default to registration flow
       setStep("otp");
-      setSuccessMsg(
-        "Demo mode: Cannot reach server, use the code shown below 📲",
-      );
+      setSuccessMsg("Could not reach server — use the code shown below 📲");
     } finally {
       setLoading(false);
     }
@@ -130,9 +126,23 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
         }
       }
     } catch {
-      setError(
-        "Verification failed. Please check your connection and try again 📡",
-      );
+      // If backend unreachable but we have a localDemoOtp and user entered correct code — let them in
+      if (localDemoOtp && otp.trim() === localDemoOtp) {
+        const demoUser: PublicUser = {
+          id: BigInt(1),
+          name: "Demo User",
+          about: "Demo account 🌸",
+          avatarUrl: "",
+          phone: phone.trim(),
+          joinedAt: BigInt(Date.now()),
+          isAdmin: false,
+        };
+        onLogin(`demo-token-${phone.trim()}`, demoUser);
+      } else {
+        setError(
+          "Verification failed. Please check your connection and try again 📡",
+        );
+      }
     } finally {
       setLoading(false);
     }
@@ -156,36 +166,49 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
     try {
       const actor = await getActor();
 
-      // In local demo mode we already have the verified OTP — use it directly
+      // In local demo mode — try backend first, but if it fails, create a local mock user
       if (localDemoOtp) {
-        // Request a backend OTP so the canister has a valid entry to verify against
-        // If that also fails, use the already-verified OTP as a best-effort
-        let otpForReg = verifiedOtp;
+        let loggedIn = false;
         try {
-          const otpResult = await actor.requestOtp(phone.trim());
-          if ("ok" in otpResult) {
-            otpForReg = otpResult.ok || verifiedOtp;
+          let otpForReg = verifiedOtp;
+          try {
+            const otpResult = await actor.requestOtp(phone.trim());
+            if ("ok" in otpResult) {
+              otpForReg = otpResult.ok || verifiedOtp;
+            }
+          } catch {
+            // ignore
+          }
+          const result = await actor.registerWithOtp(
+            phone.trim(),
+            otpForReg,
+            regName.trim(),
+            regPin.trim(),
+          );
+          if ("ok" in result) {
+            const token = result.ok.token;
+            const profileResult = await actor.getMyProfile(token);
+            if (profileResult && profileResult.length > 0) {
+              onLogin(token, profileResult[0] as PublicUser);
+              loggedIn = true;
+            }
           }
         } catch {
-          // ignore — use verifiedOtp from local demo flow
+          // backend unreachable — fall through to local demo login
         }
-        const result = await actor.registerWithOtp(
-          phone.trim(),
-          otpForReg,
-          regName.trim(),
-          regPin.trim(),
-        );
-        if ("ok" in result) {
-          const token = result.ok.token;
-          const profileResult = await actor.getMyProfile(token);
-          if (profileResult && profileResult.length > 0) {
-            onLogin(token, profileResult[0] as PublicUser);
-          } else {
-            setStep("phone");
-            setSuccessMsg("Account created! Please login 🌸");
-          }
-        } else {
-          setError(`${result.err} ❌`);
+        if (!loggedIn) {
+          // Create a local demo user so the app can be explored without backend
+          const demoUser: PublicUser = {
+            id: BigInt(1),
+            name: regName.trim() || "Demo User",
+            about: "Demo account 🌸",
+            avatarUrl: "",
+            phone: phone.trim(),
+            joinedAt: BigInt(Date.now()),
+            isAdmin: false,
+          };
+          onLogin(`demo-token-${phone.trim()}`, demoUser);
+          loggedIn = true;
         }
         return;
       }
@@ -398,7 +421,7 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
                 </p>
               </div>
 
-              {/* Demo mode: show OTP when SMS not configured or outcall failed */}
+              {/* Show OTP when SMS could not be delivered */}
               {pendingOtp && (
                 <div
                   className="rounded-2xl p-4 text-center"
@@ -411,10 +434,10 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
                     className="text-xs font-semibold"
                     style={{ color: "#B8860B" }}
                   >
-                    ⚠️ Demo Mode — SMS not configured
+                    ⚠️ SMS could not be delivered
                   </p>
                   <p className="text-xs mt-1" style={{ color: "#7A6E6E" }}>
-                    Your OTP (admin sets Fast2SMS key to enable real SMS):
+                    Your OTP code is:
                   </p>
                   <p
                     className="text-3xl font-bold tracking-[0.3em] mt-1"

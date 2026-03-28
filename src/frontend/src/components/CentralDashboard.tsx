@@ -1,3 +1,5 @@
+import type React from "react";
+import { useRef, useState } from "react";
 import { KawaiiCamera, KawaiiHeart } from "./KawaiiDoodles";
 
 const groups = [
@@ -238,32 +240,77 @@ const groups = [
   },
 ];
 
+const BANNER_BG_KEY = "chatme_banner_bg";
+
 interface CentralDashboardProps {
   onJoinChat?: (chatName: string) => void;
+  currentUser?: { name: string } | null;
 }
 
 export default function CentralDashboard({
   onJoinChat,
+  currentUser,
 }: CentralDashboardProps) {
+  const [bannerBg, setBannerBg] = useState<string | null>(() =>
+    localStorage.getItem(BANNER_BG_KEY),
+  );
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleBannerImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const dataUrl = ev.target?.result as string;
+      setBannerBg(dataUrl);
+      localStorage.setItem(BANNER_BG_KEY, dataUrl);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleRemoveBannerBg = () => {
+    setBannerBg(null);
+    localStorage.removeItem(BANNER_BG_KEY);
+  };
+
+  const bannerStyle: React.CSSProperties = bannerBg
+    ? {
+        backgroundImage: `url(${bannerBg})`,
+        backgroundSize: "cover",
+        backgroundPosition: "center",
+        border: "1.5px solid #FFD1DC",
+      }
+    : { background: "#FFE6DB", border: "1.5px solid #FFD1DC" };
+
   return (
     <div className="flex flex-col gap-5 flex-1 min-w-0">
       {/* Welcome Banner */}
       <div
-        className="flex items-center justify-between rounded-2xl p-6 shadow-soft"
-        style={{ background: "#FFE6DB", border: "1.5px solid #FFD1DC" }}
+        className="relative flex items-center justify-between rounded-2xl p-6 shadow-soft overflow-hidden"
+        style={bannerStyle}
       >
-        <div>
+        {/* Overlay for readability when custom image is set */}
+        {bannerBg && (
+          <div
+            className="absolute inset-0 rounded-2xl"
+            style={{ background: "rgba(255,255,255,0.55)" }}
+          />
+        )}
+
+        {/* Content */}
+        <div className="relative z-10">
           <h1
             className="text-3xl font-bold mb-1"
             style={{ color: "#1E1E1E", fontFamily: "'Quicksand', sans-serif" }}
           >
-            Welcome to PixelPal! 🌸
+            Welcome, {currentUser?.name ?? "Friend"}! 🌸
           </h1>
           <p className="text-base font-semibold" style={{ color: "#5A4E4E" }}>
             Share. Chat. Smile!
           </p>
         </div>
-        <div className="flex items-center gap-3">
+
+        <div className="relative z-10 flex items-center gap-3">
           <KawaiiCamera size={64} className="animate-float" />
           <KawaiiHeart
             size={58}
@@ -271,6 +318,52 @@ export default function CentralDashboard({
             style={{ animationDelay: "1s" } as React.CSSProperties}
           />
         </div>
+
+        {/* Banner background controls */}
+        <div className="absolute top-3 right-3 z-20 flex gap-2 items-center">
+          {bannerBg && (
+            <button
+              type="button"
+              onClick={handleRemoveBannerBg}
+              title="Remove custom background"
+              className="w-6 h-6 rounded-full flex items-center justify-center text-xs shadow transition-all hover:scale-110"
+              style={{
+                background: "rgba(255,140,159,0.88)",
+                color: "#fff",
+                fontWeight: 700,
+              }}
+              data-ocid="dashboard.banner.delete_button"
+            >
+              ✕
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={() => fileInputRef.current?.click()}
+            title="Change banner background"
+            className="flex items-center gap-1 shadow transition-all hover:scale-105 hover:opacity-95"
+            style={{
+              background: "rgba(255,100,130,0.88)",
+              color: "#fff",
+              borderRadius: "20px",
+              padding: "5px 12px",
+              fontSize: "12px",
+              fontWeight: 700,
+            }}
+            data-ocid="dashboard.banner.upload_button"
+          >
+            🖼️ <span>Change Photo</span>
+          </button>
+        </div>
+
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="image/*"
+          className="hidden"
+          onChange={handleBannerImageChange}
+          data-ocid="dashboard.banner.dropzone"
+        />
       </div>
 
       {/* Group Card Grid */}

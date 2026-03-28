@@ -60,7 +60,17 @@ persistent actor ChatMe {
     #err: Text;
   };
 
-  // IC management canister types for HTTP outcalls
+  type HttpResponsePayload = {
+    status: Nat;
+    headers: [{ name: Text; value: Text }];
+    body: Blob;
+  };
+
+  type TransformArgs = {
+    response: HttpResponsePayload;
+    context: Blob;
+  };
+
   type HttpRequestArgs = {
     url: Text;
     max_response_bytes: ?Nat64;
@@ -68,15 +78,9 @@ persistent actor ChatMe {
     body: ?Blob;
     method: { #get; #post; #head };
     transform: ?{
-      function: shared query ({ response: HttpResponsePayload; context: Blob }) -> async HttpResponsePayload;
+      function: shared query (TransformArgs) -> async HttpResponsePayload;
       context: Blob;
     };
-  };
-
-  type HttpResponsePayload = {
-    status: Nat;
-    headers: [{ name: Text; value: Text }];
-    body: Blob;
   };
 
   type IC = actor {
@@ -85,6 +89,15 @@ persistent actor ChatMe {
 
   let ic: IC = actor ("aaaaa-aa");
 
+  // Transform function required by ICP for deterministic HTTP outcall responses
+  public query func transformHttpResponse(args: TransformArgs): async HttpResponsePayload {
+    {
+      status = args.response.status;
+      body = args.response.body;
+      headers = [];
+    };
+  };
+
   // Stable storage
   var nextUserId: Nat = 1;
   var nextMsgId: Nat = 1;
@@ -92,8 +105,9 @@ persistent actor ChatMe {
   var sessionsStable: [(Text, UserId)] = [];
   var messagesStable: [(Nat, Message)] = [];
   var otpsStable: [(Text, Text)] = [];
-  // Fast2SMS API key - hardcoded
-  var smsApiKey: Text = "lhG9MtbPf62UDSqd4cQgOIBTFENXuJy3rjvKw0zaZxmLY1R7oe1EVYiqfSJO8nCR5DLG9FZQ432sg76I";
+  var wallpapersStable: [(Text, Text)] = [];
+  // Fast2SMS API key - hardcoded from user
+  var smsApiKey: Text = "Sg3vELGdycTE87SwuoAGIlnKB2h4ndN20zuhAKyWesTeLZ5eup84KUwhTTnu";
 
   func natHash(n: Nat): Nat32 { Nat32.fromNat(n % 4294967295) };
 
@@ -101,12 +115,14 @@ persistent actor ChatMe {
   transient var sessions : HashMap.HashMap<Text, UserId> = HashMap.HashMap(16, Text.equal, Text.hash);
   transient var messages : HashMap.HashMap<Nat, Message> = HashMap.HashMap(64, Nat.equal, natHash);
   transient var otps : HashMap.HashMap<Text, Text> = HashMap.HashMap(16, Text.equal, Text.hash);
+  transient var chatWallpapers : HashMap.HashMap<Text, Text> = HashMap.HashMap(16, Text.equal, Text.hash);
 
   system func preupgrade() {
     usersStable := Iter.toArray(usersByPhone.entries());
     sessionsStable := Iter.toArray(sessions.entries());
     messagesStable := Iter.toArray(messages.entries());
     otpsStable := Iter.toArray(otps.entries());
+    wallpapersStable := Iter.toArray(chatWallpapers.entries());
   };
 
   system func postupgrade() {
@@ -114,10 +130,12 @@ persistent actor ChatMe {
     sessions := HashMap.fromIter<Text, UserId>(sessionsStable.vals(), 16, Text.equal, Text.hash);
     messages := HashMap.fromIter<Nat, Message>(messagesStable.vals(), 64, Nat.equal, natHash);
     otps := HashMap.fromIter<Text, Text>(otpsStable.vals(), 16, Text.equal, Text.hash);
+    chatWallpapers := HashMap.fromIter<Text, Text>(wallpapersStable.vals(), 16, Text.equal, Text.hash);
     usersStable := [];
     sessionsStable := [];
     messagesStable := [];
     otpsStable := [];
+    wallpapersStable := [];
   };
 
   func makeToken(userId: Nat): Text {
@@ -140,9 +158,8 @@ persistent actor ChatMe {
     };
   };
 
-  // Strip country code and return only digits for Fast2SMS
+  // Strip country code - keep last 10 digits for Indian numbers
   func cleanPhone(phone: Text): Text {
-    // Remove +91, 91 prefix for Indian numbers; keep last 10 digits
     let chars = Iter.toArray(Text.toIter(phone));
     var digits = "";
     for (c in chars.vals()) {
@@ -150,9 +167,7 @@ persistent actor ChatMe {
         digits := digits # Text.fromChar(c);
       };
     };
-    // If 12 digits and starts with 91, strip prefix
     if (digits.size() == 12) {
-      // Take last 10
       let arr = Iter.toArray(Text.toIter(digits));
       var last10 = "";
       var i = 2;
@@ -162,32 +177,47 @@ persistent actor ChatMe {
       };
       return last10;
     };
+    if (digits.size() == 11 and Text.startsWith(digits, #text "0")) {
+      let arr = Iter.toArray(Text.toIter(digits));
+      var last10 = "";
+      var i = 1;
+      while (i < 11) {
+        last10 := last10 # Text.fromChar(arr[i]);
+        i += 1;
+      };
+      return last10;
+    };
     digits;
   };
 
-  // Send OTP via Fast2SMS HTTP outcall
+  // Send OTP via Fast2SMS HTTP outcall with proper cycles and transform
   func sendSmsFast2sms(phone: Text, otp: Text): async Bool {
     let cleanNum = cleanPhone(phone);
     let url = "https://www.fast2sms.com/dev/bulkV2?authorization=" # smsApiKey # "&variables_values=" # otp # "&route=otp&numbers=" # cleanNum;
     try {
-      Cycles.add<system>(20_000_000_000);
+      // ICP HTTP outcalls need ~400 billion cycles minimum
+      Cycles.add<system>(400_000_000_000);
       let response = await ic.http_request({
         url = url;
         max_response_bytes = ?2000;
         headers = [
+          { name = "Content-Type"; value = "application/json" },
           { name = "User-Agent"; value = "ChatMe/1.0" }
         ];
         body = null;
         method = #get;
-        transform = null;
+        transform = ?{
+          function = transformHttpResponse;
+          context = Blob.fromArray([]);
+        };
       });
-      response.status == 200;
+      // Fast2SMS returns 200 on success
+      response.status >= 200 and response.status < 300;
     } catch (_) {
       false;
     };
   };
 
-  // Set Fast2SMS API key (admin only)
   public func setApiKey(token: Text, apiKey: Text): async Bool {
     switch (getUserByToken(token)) {
       case null false;
@@ -199,33 +229,47 @@ persistent actor ChatMe {
     };
   };
 
-  // Get whether SMS API key is configured
   public query func isSmsConfigured(): async Bool {
     smsApiKey != "";
   };
 
+  // Set chat wallpaper - any authenticated user can set for a chat (shared)
+  public func setChatWallpaper(token: Text, chatId: Text, wallpaper: Text): async Bool {
+    switch (getUserByToken(token)) {
+      case null false;
+      case (?_) {
+        chatWallpapers.put(chatId, wallpaper);
+        true;
+      };
+    };
+  };
+
+  // Get chat wallpaper - returns empty string if not set
+  public query func getChatWallpaper(chatId: Text): async Text {
+    switch (chatWallpapers.get(chatId)) {
+      case null "";
+      case (?w) w;
+    };
+  };
+
   // Generate and send a 6-digit OTP via Fast2SMS
-  // Returns #ok("") on success (OTP not exposed to frontend)
-  // Returns #err if SMS fails or API key not set
+  // Returns #ok("") on success - OTP not exposed to frontend
+  // Returns #ok(code) if SMS fails - shows OTP on screen as fallback
   public func requestOtp(phone: Text): async OtpResult {
     if (phone == "") return #err("Phone number required");
-    // Generate pseudo-random 6-digit OTP
     let timeSlot : Nat = if (Time.now() > 0) { Nat32.toNat(Nat32.fromIntWrap(Time.now() / 1_000_000_000 / 30)) } else { 0 };
     let seed = Nat32.toNat(Text.hash(phone)) + (timeSlot % 1000000);
     let code = Nat.toText((seed % 900000) + 100000);
     otps.put(phone, code);
 
-    // Send via Fast2SMS (API key is set)
     let sent = await sendSmsFast2sms(phone, code);
     if (sent) {
-      #ok(""); // Don't expose OTP to frontend
+      #ok(""); // SMS sent successfully - don't show OTP on screen
     } else {
-      // SMS failed - return OTP on screen as fallback
-      #ok(code);
+      #ok(code); // SMS failed - show OTP on screen as fallback
     };
   };
 
-  // Verify OTP - returns true if correct, removes OTP after use
   public func verifyOtp(phone: Text, otp: Text): async Bool {
     switch (otps.get(phone)) {
       case null false;
@@ -240,7 +284,6 @@ persistent actor ChatMe {
     };
   };
 
-  // Register with OTP verification
   public func registerWithOtp(phone: Text, otp: Text, name: Text, pin: Text): async RegisterResult {
     if (phone == "" or otp == "" or name == "" or pin == "") return #err("All fields required");
     switch (otps.get(phone)) {
@@ -272,7 +315,6 @@ persistent actor ChatMe {
     #ok({ userId = uid; token = token });
   };
 
-  // Login with OTP verification
   public func loginWithOtp(phone: Text, otp: Text): async LoginResult {
     if (phone == "" or otp == "") return #err("All fields required");
     switch (otps.get(phone)) {

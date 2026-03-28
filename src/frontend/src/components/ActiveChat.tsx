@@ -28,7 +28,24 @@ const chatEmoji: Record<string, string> = {
   "DM: Mia": "🎀",
 };
 
-const DOODLES = ["💕", "✨", "🌸", "⭐", "💫", "🎀", "💗", "🌟"];
+const DOODLES = [
+  { id: "d1", emoji: "💕", x: 8, y: 6, size: 32, rotate: -15 },
+  { id: "d2", emoji: "✨", x: 25, y: 18, size: 28, rotate: 20 },
+  { id: "d3", emoji: "🌸", x: 72, y: 8, size: 36, rotate: 10 },
+  { id: "d4", emoji: "⭐", x: 88, y: 22, size: 30, rotate: -20 },
+  { id: "d5", emoji: "💫", x: 15, y: 42, size: 26, rotate: 30 },
+  { id: "d6", emoji: "🎀", x: 82, y: 45, size: 34, rotate: -10 },
+  { id: "d7", emoji: "💗", x: 45, y: 12, size: 30, rotate: 15 },
+  { id: "d8", emoji: "🌟", x: 60, y: 55, size: 32, rotate: -25 },
+  { id: "d9", emoji: "🦋", x: 5, y: 68, size: 28, rotate: 5 },
+  { id: "d10", emoji: "🌺", x: 90, y: 70, size: 36, rotate: -15 },
+  { id: "d11", emoji: "💖", x: 35, y: 78, size: 30, rotate: 20 },
+  { id: "d12", emoji: "🍓", x: 68, y: 82, size: 26, rotate: -10 },
+  { id: "d13", emoji: "🌈", x: 20, y: 88, size: 32, rotate: 8 },
+  { id: "d14", emoji: "🎵", x: 75, y: 35, size: 28, rotate: -30 },
+  { id: "d15", emoji: "🌻", x: 50, y: 90, size: 34, rotate: 12 },
+];
+
 const GIF_EMOJIS = ["🐱", "💃", "🎉", "🌈", "🦄", "🍕", "🎨", "🌸"];
 const STICKERS = [
   "🌸",
@@ -43,6 +60,84 @@ const STICKERS = [
   "🥺",
   "💫",
   "🎨",
+];
+
+const WALLPAPER_PRESETS = [
+  {
+    id: "default",
+    name: "Rose Dream",
+    gradient: "linear-gradient(135deg, #FFF0F8 0%, #FFE0EE 50%, #F5E0FF 100%)",
+    doodleColor: "#FFB6C1",
+  },
+  {
+    id: "sunset",
+    name: "Sunset Kiss",
+    gradient: "linear-gradient(135deg, #FFE0B2 0%, #FFCCBC 40%, #F8BBD0 100%)",
+    doodleColor: "#FFAB91",
+  },
+  {
+    id: "ocean",
+    name: "Sky Bliss",
+    gradient: "linear-gradient(135deg, #E3F2FD 0%, #E8EAF6 50%, #F3E5F5 100%)",
+    doodleColor: "#90CAF9",
+  },
+  {
+    id: "mint",
+    name: "Mint Candy",
+    gradient: "linear-gradient(135deg, #E0F7FA 0%, #E8F5E9 50%, #F0FFF0 100%)",
+    doodleColor: "#80CBC4",
+  },
+  {
+    id: "galaxy",
+    name: "Galaxy Pop",
+    gradient: "linear-gradient(135deg, #E8EAF6 0%, #EDE7F6 50%, #F3E5F5 100%)",
+    doodleColor: "#B39DDB",
+  },
+  {
+    id: "peach",
+    name: "Peachy Soft",
+    gradient: "linear-gradient(135deg, #FFF8E1 0%, #FFF3E0 50%, #FBE9E7 100%)",
+    doodleColor: "#FFCC80",
+  },
+];
+
+const BUBBLE_SCHEMES = [
+  {
+    id: "pink",
+    name: "Rose",
+    sent: "linear-gradient(135deg, #FFD1DC 0%, #FFB6C8 100%)",
+    received: "linear-gradient(135deg, #F0E6FF 0%, #E8DFFF 100%)",
+  },
+  {
+    id: "blue",
+    name: "Sky",
+    sent: "linear-gradient(135deg, #B3E5FC 0%, #81D4FA 100%)",
+    received: "linear-gradient(135deg, #E8EAF6 0%, #C5CAE9 100%)",
+  },
+  {
+    id: "green",
+    name: "Mint",
+    sent: "linear-gradient(135deg, #C8E6C9 0%, #A5D6A7 100%)",
+    received: "linear-gradient(135deg, #E0F7FA 0%, #B2EBF2 100%)",
+  },
+  {
+    id: "purple",
+    name: "Lavender",
+    sent: "linear-gradient(135deg, #E1BEE7 0%, #CE93D8 100%)",
+    received: "linear-gradient(135deg, #F3E5F5 0%, #EDE7F6 100%)",
+  },
+  {
+    id: "peach",
+    name: "Peach",
+    sent: "linear-gradient(135deg, #FFCCBC 0%, #FFAB91 100%)",
+    received: "linear-gradient(135deg, #FFF8E1 0%, #FFECB3 100%)",
+  },
+  {
+    id: "rainbow",
+    name: "Candy",
+    sent: "linear-gradient(135deg, #FFD1DC 0%, #C5CAE9 100%)",
+    received: "linear-gradient(135deg, #B2EBF2 0%, #C8E6C9 100%)",
+  },
 ];
 
 interface ActiveChatProps {
@@ -67,13 +162,49 @@ export default function ActiveChat({
   const [mediaTab, setMediaTab] = useState<"image" | "gif" | "sticker">(
     "image",
   );
+  const [showDropdown, setShowDropdown] = useState(false);
+  const [showWallpaperPicker, setShowWallpaperPicker] = useState(false);
+  const [showBubblePicker, setShowBubblePicker] = useState(false);
+  const [activeWallpaper, setActiveWallpaper] = useState("default");
+  const [activeBubble, setActiveBubble] = useState("pink");
+
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const mediaPickerRef = useRef<HTMLDivElement>(null);
+  const dropdownRef = useRef<HTMLDivElement>(null);
   const lastCountRef = useRef(0);
   const currentUserRef = useRef(currentUser);
   currentUserRef.current = currentUser;
+
+  const currentWallpaper =
+    WALLPAPER_PRESETS.find((w) => w.id === activeWallpaper) ??
+    WALLPAPER_PRESETS[0];
+  const currentBubble =
+    BUBBLE_SCHEMES.find((b) => b.id === activeBubble) ?? BUBBLE_SCHEMES[0];
+
+  // Load wallpaper and bubble from backend/localStorage on mount
+  useEffect(() => {
+    const loadPrefs = async () => {
+      try {
+        const actor = await getActor();
+        const wallpaperId = await (actor as any).getChatWallpaper(chatName);
+        if (
+          wallpaperId &&
+          WALLPAPER_PRESETS.find((w) => w.id === wallpaperId)
+        ) {
+          setActiveWallpaper(wallpaperId);
+        }
+      } catch {
+        // fallback to default
+      }
+      const savedBubble = localStorage.getItem(`chatme_bubble_${chatName}`);
+      if (savedBubble && BUBBLE_SCHEMES.find((b) => b.id === savedBubble)) {
+        setActiveBubble(savedBubble);
+      }
+    };
+    loadPrefs();
+  }, [chatName]);
 
   const backendToMessage = useCallback(
     (m: {
@@ -154,6 +285,37 @@ export default function ActiveChat({
     document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
   }, [showMediaPicker]);
+
+  useEffect(() => {
+    if (!showDropdown) return;
+    const handler = (e: MouseEvent) => {
+      if (
+        dropdownRef.current &&
+        !dropdownRef.current.contains(e.target as Node)
+      ) {
+        setShowDropdown(false);
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [showDropdown]);
+
+  const handleSelectWallpaper = async (wallpaperId: string) => {
+    setActiveWallpaper(wallpaperId);
+    setShowWallpaperPicker(false);
+    try {
+      const actor = await getActor();
+      await (actor as any).setChatWallpaper(token, chatName, wallpaperId);
+    } catch {
+      // local-only fallback
+    }
+  };
+
+  const handleSelectBubble = (bubbleId: string) => {
+    setActiveBubble(bubbleId);
+    localStorage.setItem(`chatme_bubble_${chatName}`, bubbleId);
+    setShowBubblePicker(false);
+  };
 
   const handleSend = async () => {
     if (!input.trim()) return;
@@ -257,13 +419,27 @@ export default function ActiveChat({
         paddingBottom: "80px",
       }}
     >
+      {/* CSS for twinkling animation */}
+      <style>{`
+        @keyframes twinkle {
+          0%, 100% { opacity: 0.2; transform: scale(1) rotate(var(--r)); }
+          50% { opacity: 0.4; transform: scale(1.3) rotate(var(--r)); }
+        }
+        @keyframes float {
+          0%, 100% { transform: translateY(0px) rotate(var(--r)); }
+          50% { transform: translateY(-8px) rotate(var(--r)); }
+        }
+        .doodle-twinkle { animation: twinkle var(--dur, 3s) ease-in-out infinite; }
+        .doodle-float { animation: float var(--dur, 4s) ease-in-out infinite; }
+      `}</style>
+
       {/* Header */}
       <div
         className="flex items-center gap-3 px-4 py-3 sticky top-0"
         style={{
           background: "linear-gradient(135deg, #FFF0F8 0%, #F5EEFF 100%)",
           borderBottom: "1.5px solid #FFD1DC",
-          zIndex: 10,
+          zIndex: 50,
         }}
       >
         <button
@@ -291,47 +467,97 @@ export default function ActiveChat({
             🟢 online · {messages.length} messages
           </p>
         </div>
-        <button
-          type="button"
-          data-ocid="activechat.dropdown_menu"
-          className="w-9 h-9 rounded-full flex items-center justify-center font-bold text-lg hover:opacity-70 transition-all"
-          style={{ color: "#7A6E6E", background: "#F5F0FF" }}
-        >
-          ⋯
-        </button>
+
+        {/* 3-dot dropdown */}
+        <div className="relative" ref={dropdownRef}>
+          <button
+            type="button"
+            data-ocid="activechat.dropdown_menu"
+            onClick={() => setShowDropdown((v) => !v)}
+            className="w-9 h-9 rounded-full flex items-center justify-center font-bold text-lg hover:opacity-70 transition-all"
+            style={{
+              color: "#7A6E6E",
+              background: showDropdown ? "#FFD1DC" : "#F5F0FF",
+            }}
+          >
+            ⋯
+          </button>
+          {showDropdown && (
+            <div
+              className="absolute right-0 top-11 rounded-2xl overflow-hidden shadow-xl"
+              style={{
+                background: "#FFF5FB",
+                border: "1.5px solid #FFD1DC",
+                minWidth: "180px",
+                zIndex: 100,
+              }}
+            >
+              <button
+                type="button"
+                onClick={() => {
+                  setShowWallpaperPicker(true);
+                  setShowDropdown(false);
+                }}
+                data-ocid="activechat.wallpaper.button"
+                className="w-full flex items-center gap-2 px-4 py-3 text-sm font-semibold hover:opacity-80 transition-all text-left"
+                style={{ color: "#7A5C8C", borderBottom: "1px solid #FFE4F0" }}
+              >
+                🎨 Change Wallpaper
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowBubblePicker(true);
+                  setShowDropdown(false);
+                }}
+                data-ocid="activechat.bubble.button"
+                className="w-full flex items-center gap-2 px-4 py-3 text-sm font-semibold hover:opacity-80 transition-all text-left"
+                style={{ color: "#7A5C8C" }}
+              >
+                💬 Change Bubble Color
+              </button>
+            </div>
+          )}
+        </div>
       </div>
 
-      {/* Messages */}
+      {/* Messages area */}
       <div
         className="flex-1 overflow-y-auto px-4 py-4 flex flex-col gap-3 relative"
         style={{
-          background: [
-            "radial-gradient(circle at 15% 25%, #FFD1DC33 0%, transparent 40%)",
-            "radial-gradient(circle at 85% 75%, #E8DFFF33 0%, transparent 40%)",
-            "radial-gradient(circle at 50% 50%, #FFF0F833 0%, transparent 60%)",
-          ].join(", "),
-          backgroundColor: "#FFF5FB",
+          background: currentWallpaper.gradient,
           minHeight: "calc(100vh - 200px)",
         }}
         data-ocid="activechat.list"
       >
+        {/* Decorative kawaii doodles */}
         <div
           className="absolute inset-0 pointer-events-none overflow-hidden"
           style={{ zIndex: 0 }}
         >
-          {DOODLES.map((e, i) => (
-            <span
-              key={e}
-              className="absolute text-2xl"
-              style={{
-                opacity: 0.15,
-                left: `${10 + ((i * 17) % 80)}%`,
-                top: `${5 + ((i * 23) % 80)}%`,
-              }}
-            >
-              {e}
-            </span>
-          ))}
+          {DOODLES.map((d, i) => {
+            const istwinkle = i % 3 === 0;
+            const dur = 2.5 + ((i * 0.4) % 3);
+            return (
+              <span
+                key={d.id}
+                className={istwinkle ? "doodle-twinkle" : "doodle-float"}
+                style={{
+                  position: "absolute",
+                  fontSize: `${d.size}px`,
+                  left: `${d.x}%`,
+                  top: `${d.y}%`,
+                  ["--r" as string]: `${d.rotate}deg`,
+                  ["--dur" as string]: `${dur}s`,
+                  opacity: 0.22,
+                  filter: `drop-shadow(0 0 4px ${currentWallpaper.doodleColor}88)`,
+                  animationDelay: `${(i * 0.35) % 2}s`,
+                }}
+              >
+                {d.emoji}
+              </span>
+            );
+          })}
         </div>
 
         {messages.map((msg, i) => (
@@ -362,8 +588,8 @@ export default function ActiveChat({
                 style={{
                   background:
                     msg.side === "right"
-                      ? "linear-gradient(135deg, #FFD1DC 0%, #FFB6C8 100%)"
-                      : "linear-gradient(135deg, #F0E6FF 0%, #E8DFFF 100%)",
+                      ? currentBubble.sent
+                      : currentBubble.received,
                   color: "#1E1E1E",
                   borderRadius:
                     msg.side === "right"
@@ -619,6 +845,160 @@ export default function ActiveChat({
       </div>
 
       <BottomNav active="chat" onNav={onNav} />
+
+      {/* Wallpaper Picker Modal */}
+      {showWallpaperPicker && (
+        <div
+          className="fixed inset-0 flex items-end justify-center"
+          role="presentation"
+          style={{ zIndex: 200, background: "rgba(0,0,0,0.3)" }}
+          onKeyDown={(e) => e.key === "Escape" && setShowWallpaperPicker(false)}
+          onClick={() => setShowWallpaperPicker(false)}
+        >
+          <div
+            className="w-full max-w-lg rounded-t-3xl p-6"
+            style={{ background: "#FFF5FB", border: "2px solid #FFD1DC" }}
+            data-ocid="activechat.wallpaper.modal"
+          >
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-base font-bold" style={{ color: "#7A5C8C" }}>
+                🎨 Choose Wallpaper
+              </h3>
+              <button
+                type="button"
+                onKeyDown={(e) =>
+                  e.key === "Escape" && setShowWallpaperPicker(false)
+                }
+                onClick={() => setShowWallpaperPicker(false)}
+                data-ocid="activechat.wallpaper.close_button"
+                className="w-8 h-8 rounded-full flex items-center justify-center hover:opacity-70"
+                style={{
+                  background: "#FFE4F0",
+                  color: "#FF8C9F",
+                  fontWeight: 700,
+                }}
+              >
+                ✕
+              </button>
+            </div>
+            <div className="grid grid-cols-3 gap-3">
+              {WALLPAPER_PRESETS.map((wp) => (
+                <button
+                  key={wp.id}
+                  type="button"
+                  onClick={() => handleSelectWallpaper(wp.id)}
+                  className="flex flex-col items-center gap-1 p-2 rounded-2xl transition-all hover:scale-105"
+                  style={{
+                    border:
+                      activeWallpaper === wp.id
+                        ? "2.5px solid #FF8C9F"
+                        : "2px solid #FFD1DC",
+                    background: "white",
+                  }}
+                >
+                  <div
+                    className="w-full h-16 rounded-xl"
+                    style={{ background: wp.gradient }}
+                  />
+                  <span
+                    className="text-xs font-semibold"
+                    style={{ color: "#7A5C8C" }}
+                  >
+                    {wp.name}
+                  </span>
+                  {activeWallpaper === wp.id && (
+                    <span
+                      className="text-[10px] font-bold"
+                      style={{ color: "#FF8C9F" }}
+                    >
+                      ✓ Selected
+                    </span>
+                  )}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Bubble Color Picker Modal */}
+      {showBubblePicker && (
+        <div
+          className="fixed inset-0 flex items-end justify-center"
+          role="presentation"
+          style={{ zIndex: 200, background: "rgba(0,0,0,0.3)" }}
+          onKeyDown={(e) => e.key === "Escape" && setShowBubblePicker(false)}
+          onClick={() => setShowBubblePicker(false)}
+        >
+          <div
+            className="w-full max-w-lg rounded-t-3xl p-6"
+            style={{ background: "#FFF5FB", border: "2px solid #FFD1DC" }}
+            data-ocid="activechat.bubble.modal"
+          >
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-base font-bold" style={{ color: "#7A5C8C" }}>
+                💬 Choose Bubble Color
+              </h3>
+              <button
+                type="button"
+                onKeyDown={(e) =>
+                  e.key === "Escape" && setShowBubblePicker(false)
+                }
+                onClick={() => setShowBubblePicker(false)}
+                data-ocid="activechat.bubble.close_button"
+                className="w-8 h-8 rounded-full flex items-center justify-center hover:opacity-70"
+                style={{
+                  background: "#FFE4F0",
+                  color: "#FF8C9F",
+                  fontWeight: 700,
+                }}
+              >
+                ✕
+              </button>
+            </div>
+            <div className="grid grid-cols-3 gap-3">
+              {BUBBLE_SCHEMES.map((scheme) => (
+                <button
+                  key={scheme.id}
+                  type="button"
+                  onClick={() => handleSelectBubble(scheme.id)}
+                  className="flex flex-col items-center gap-1 p-2 rounded-2xl transition-all hover:scale-105"
+                  style={{
+                    border:
+                      activeBubble === scheme.id
+                        ? "2.5px solid #FF8C9F"
+                        : "2px solid #FFD1DC",
+                    background: "white",
+                  }}
+                >
+                  <div
+                    className="w-full h-8 rounded-xl"
+                    style={{ background: scheme.sent }}
+                  />
+                  <div
+                    className="w-full h-8 rounded-xl"
+                    style={{ background: scheme.received }}
+                  />
+                  <span
+                    className="text-xs font-semibold"
+                    style={{ color: "#7A5C8C" }}
+                  >
+                    {scheme.name}
+                  </span>
+                  {activeBubble === scheme.id && (
+                    <span
+                      className="text-[10px] font-bold"
+                      style={{ color: "#FF8C9F" }}
+                    >
+                      ✓ Selected
+                    </span>
+                  )}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
