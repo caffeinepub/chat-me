@@ -60,11 +60,45 @@ export default function ProfileView({
 
   const handleDpClick = () => fileInputRef.current?.click();
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) {
-      const url = URL.createObjectURL(file);
-      onDpChange(url);
+    if (!file) return;
+    // Resize & compress to ~200KB max before saving as base64
+    const resized = await new Promise<string>((resolve) => {
+      const img = new Image();
+      const blobUrl = URL.createObjectURL(file);
+      img.onload = () => {
+        const MAX = 300;
+        let w = img.width;
+        let h = img.height;
+        if (w > MAX || h > MAX) {
+          if (w > h) {
+            h = Math.round((h * MAX) / w);
+            w = MAX;
+          } else {
+            w = Math.round((w * MAX) / h);
+            h = MAX;
+          }
+        }
+        const canvas = document.createElement("canvas");
+        canvas.width = w;
+        canvas.height = h;
+        canvas.getContext("2d")!.drawImage(img, 0, 0, w, h);
+        URL.revokeObjectURL(blobUrl);
+        resolve(canvas.toDataURL("image/jpeg", 0.7));
+      };
+      img.src = blobUrl;
+    });
+    // Show immediately in UI
+    onDpChange(resized);
+    // Save to backend permanently
+    try {
+      const actor = await getActor();
+      await actor.updateProfile(token, name, about, resized);
+      if (currentUser) onUserUpdate({ ...currentUser, avatarUrl: resized });
+      showMsg("ok", "Profile photo saved! ✓");
+    } catch {
+      showMsg("err", "Photo upload failed. Try again.");
     }
   };
 
