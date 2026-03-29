@@ -1,12 +1,8 @@
 import type { backendInterface as BackendInterface } from "../backend.d";
 import { createActorWithConfig } from "../config";
 
-let actorInstance: BackendInterface | null = null;
-
+// No singleton caching -- always create a fresh actor to avoid stale/broken instances
 export async function getActor(): Promise<BackendInterface> {
-  if (!actorInstance) {
-    const actor = await createActorWithConfig();
-    actorInstance = actor as unknown as BackendInterface;
-  }
-  return actorInstance;
+  const actor = await createActorWithConfig();
+  return actor as unknown as BackendInterface;
 }

@@ -104,23 +104,19 @@ export default function App() {
           setView("login");
         }
       } catch {
-        // Backend unreachable
-        if (savedToken.startsWith("demo-")) {
-          // Restore demo session from localStorage
-          const savedUser = localStorage.getItem("chatme_user");
-          if (savedUser) {
-            const user = deserializeUser(savedUser);
-            if (user) {
-              setToken(savedToken);
-              setCurrentUser(user);
-              setDpUrl(user.avatarUrl || null);
-              setView("home");
-              return;
-            }
+        // Backend temporarily unreachable -- restore from localStorage cache
+        const savedUser = localStorage.getItem("chatme_user");
+        if (savedUser) {
+          const user = deserializeUser(savedUser);
+          if (user) {
+            setToken(savedToken);
+            setCurrentUser(user);
+            setDpUrl(user.avatarUrl || null);
+            setView("home");
+            return;
           }
         }
-        localStorage.removeItem("chatme_token");
-        localStorage.removeItem("chatme_user");
+        // No cached user -- go to login (don't clear token so user can retry)
         setView("login");
       }
     }, 2500);

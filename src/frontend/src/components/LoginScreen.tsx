@@ -109,8 +109,21 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
         setError(`${result.err} ❌`);
       }
     } catch {
-      setError("Could not reach server. Please try again 📡");
-      setShowDemoBtn(true);
+      // Retry once after 1 second
+      try {
+        await new Promise((r) => setTimeout(r, 1000));
+        const { getActor } = await import("../lib/actor");
+        const actor2 = await getActor();
+        const result2 = await actor2.loginWithPassword(uname, pass);
+        if ("ok" in result2) {
+          onLogin(result2.ok.token, result2.ok.user);
+          return;
+        }
+        setError(`${result2.err} ❌`);
+      } catch {
+        setError("Could not reach server. Please try again later 📡");
+        setShowDemoBtn(true);
+      }
     } finally {
       setLoading(false);
     }
@@ -166,8 +179,27 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
         setError(`${result.err} ❌`);
       }
     } catch {
-      setError("Could not reach server. Please try again 📡");
-      setShowDemoBtn(true);
+      // Retry once
+      try {
+        await new Promise((r) => setTimeout(r, 1000));
+        const { getActor: getActor2 } = await import("../lib/actor");
+        const actor2 = await getActor2();
+        const result2 = await actor2.registerWithPassword(uname, pass, name);
+        if ("ok" in result2) {
+          const profileResult2 = await actor2.getMyProfile(result2.ok.token);
+          if (profileResult2 && profileResult2.length > 0) {
+            onLogin(result2.ok.token, profileResult2[0] as PublicUser);
+          } else {
+            setSuccessMsg("Account created! Please login 🌸");
+            setTab("login");
+          }
+          return;
+        }
+        setError(`${result2.err} ❌`);
+      } catch {
+        setError("Could not reach server. Please try again later 📡");
+        setShowDemoBtn(true);
+      }
     } finally {
       setLoading(false);
     }
