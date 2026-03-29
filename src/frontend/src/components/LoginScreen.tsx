@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import type { PublicUser } from "../backend.d";
-import { getActor } from "../lib/actor";
+import { withRetry } from "../lib/actor";
 
 interface LoginScreenProps {
   onLogin: (token: string, user: PublicUser) => void;
@@ -11,15 +11,14 @@ type Tab = "login" | "register";
 export default function LoginScreen({ onLogin }: LoginScreenProps) {
   const [tab, setTab] = useState<Tab>("login");
   const [loading, setLoading] = useState(false);
+  const [loadingMsg, setLoadingMsg] = useState("");
   const [error, setError] = useState("");
   const [successMsg, setSuccessMsg] = useState("");
   const [showDemoBtn, setShowDemoBtn] = useState(false);
 
-  // Login fields
   const [loginUsername, setLoginUsername] = useState("");
   const [loginPassword, setLoginPassword] = useState("");
 
-  // Register fields
   const [regUsername, setRegUsername] = useState("");
   const [regName, setRegName] = useState("");
   const [regPassword, setRegPassword] = useState("");
@@ -43,7 +42,6 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
     boxSizing: "border-box" as const,
   };
 
-  // Debounced username availability check
   useEffect(() => {
     if (!regUsername || regUsername.length < 3) {
       setUsernameAvailable(null);
@@ -56,15 +54,16 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
     setUsernameChecking(true);
     const timer = setTimeout(async () => {
       try {
-        const actor = await getActor();
-        const available = await actor.isUsernameAvailablePublic(regUsername);
+        const available = await withRetry((actor) =>
+          actor.isUsernameAvailablePublic(regUsername),
+        );
         setUsernameAvailable(available);
       } catch {
         setUsernameAvailable(null);
       } finally {
         setUsernameChecking(false);
       }
-    }, 500);
+    }, 600);
     return () => clearTimeout(timer);
   }, [regUsername]);
 
@@ -85,6 +84,13 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
     onLogin(demoToken, fakeUser);
   };
 
+  const retryMessages = [
+    "Connecting... 💫",
+    "Retrying... 🌸",
+    "Almost there... ✨",
+    "One more try... 💕",
+  ];
+
   const handleLogin = async () => {
     const uname = loginUsername.trim();
     const pass = loginPassword.trim();
@@ -100,32 +106,27 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
     setError("");
     setSuccessMsg("");
     setShowDemoBtn(false);
+    setLoadingMsg(retryMessages[0]);
+    let attempt = 0;
     try {
-      const actor = await getActor();
-      const result = await actor.loginWithPassword(uname, pass);
+      const result = await withRetry(async (actor) => {
+        setLoadingMsg(
+          retryMessages[Math.min(attempt, retryMessages.length - 1)],
+        );
+        attempt++;
+        return actor.loginWithPassword(uname, pass);
+      });
       if ("ok" in result) {
         onLogin(result.ok.token, result.ok.user);
       } else {
         setError(`${result.err} ❌`);
       }
     } catch {
-      // Retry once after 1 second
-      try {
-        await new Promise((r) => setTimeout(r, 1000));
-        const { getActor } = await import("../lib/actor");
-        const actor2 = await getActor();
-        const result2 = await actor2.loginWithPassword(uname, pass);
-        if ("ok" in result2) {
-          onLogin(result2.ok.token, result2.ok.user);
-          return;
-        }
-        setError(`${result2.err} ❌`);
-      } catch {
-        setError("Could not reach server. Please try again later 📡");
-        setShowDemoBtn(true);
-      }
+      setError("Could not reach server. Please try again later 📡");
+      setShowDemoBtn(true);
     } finally {
       setLoading(false);
+      setLoadingMsg("");
     }
   };
 
@@ -164,14 +165,28 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
     setError("");
     setSuccessMsg("");
     setShowDemoBtn(false);
+    setLoadingMsg(retryMessages[0]);
+    let attempt = 0;
     try {
-      const actor = await getActor();
-      const result = await actor.registerWithPassword(uname, pass, name);
+      const result = await withRetry(async (actor) => {
+        setLoadingMsg(
+          retryMessages[Math.min(attempt, retryMessages.length - 1)],
+        );
+        attempt++;
+        return actor.registerWithPassword(uname, pass, name);
+      });
       if ("ok" in result) {
-        const profileResult = await actor.getMyProfile(result.ok.token);
-        if (profileResult && profileResult.length > 0) {
-          onLogin(result.ok.token, profileResult[0] as PublicUser);
-        } else {
+        try {
+          const profileResult = await withRetry((actor) =>
+            actor.getMyProfile(result.ok.token),
+          );
+          if (profileResult && profileResult.length > 0) {
+            onLogin(result.ok.token, profileResult[0] as PublicUser);
+          } else {
+            setSuccessMsg("Account created! Please login 🌸");
+            setTab("login");
+          }
+        } catch {
           setSuccessMsg("Account created! Please login 🌸");
           setTab("login");
         }
@@ -179,29 +194,11 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
         setError(`${result.err} ❌`);
       }
     } catch {
-      // Retry once
-      try {
-        await new Promise((r) => setTimeout(r, 1000));
-        const { getActor: getActor2 } = await import("../lib/actor");
-        const actor2 = await getActor2();
-        const result2 = await actor2.registerWithPassword(uname, pass, name);
-        if ("ok" in result2) {
-          const profileResult2 = await actor2.getMyProfile(result2.ok.token);
-          if (profileResult2 && profileResult2.length > 0) {
-            onLogin(result2.ok.token, profileResult2[0] as PublicUser);
-          } else {
-            setSuccessMsg("Account created! Please login 🌸");
-            setTab("login");
-          }
-          return;
-        }
-        setError(`${result2.err} ❌`);
-      } catch {
-        setError("Could not reach server. Please try again later 📡");
-        setShowDemoBtn(true);
-      }
+      setError("Could not reach server. Please try again later 📡");
+      setShowDemoBtn(true);
     } finally {
       setLoading(false);
+      setLoadingMsg("");
     }
   };
 
@@ -221,7 +218,6 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
         fontFamily: "'Quicksand', sans-serif",
       }}
     >
-      {/* Background emojis */}
       <div
         className="fixed inset-0 pointer-events-none overflow-hidden"
         style={{ zIndex: 0 }}
@@ -244,7 +240,6 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
       </div>
 
       <div className="relative z-10 w-full max-w-sm flex flex-col items-center gap-6">
-        {/* Logo */}
         <div className="flex flex-col items-center gap-3">
           <div
             className="w-20 h-20 rounded-2xl overflow-hidden flex items-center justify-center"
@@ -266,7 +261,6 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
           </div>
         </div>
 
-        {/* Card */}
         <div
           className="w-full rounded-3xl p-6 flex flex-col gap-5"
           style={{
@@ -276,7 +270,6 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
             boxShadow: "0 8px 40px rgba(255,140,159,0.15)",
           }}
         >
-          {/* Tabs */}
           <div
             className="flex rounded-2xl overflow-hidden"
             style={{ border: "1.5px solid #FFD1DC" }}
@@ -307,6 +300,14 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
             </button>
           </div>
 
+          {loading && loadingMsg && (
+            <div
+              className="px-4 py-3 rounded-2xl text-sm font-semibold text-center"
+              style={{ background: "#FFF0F5", color: "#FF8C9F" }}
+            >
+              {loadingMsg}
+            </div>
+          )}
           {error && (
             <div
               className="px-4 py-3 rounded-2xl text-sm font-semibold text-center"
@@ -345,7 +346,6 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
             </div>
           )}
 
-          {/* LOGIN TAB */}
           {tab === "login" && (
             <div className="flex flex-col gap-4">
               <div className="text-center">
@@ -398,7 +398,7 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
                 style={{ background: loading ? "#FFB6C8" : "#FF8C9F" }}
                 data-ocid="login.primary_button"
               >
-                {loading ? "✿ Logging in..." : "Login 💕"}
+                {loading ? loadingMsg || "Connecting... 💫" : "Login 💕"}
               </button>
               <p className="text-xs text-center" style={{ color: "#7A6E6E" }}>
                 New here?{" "}
@@ -419,7 +419,6 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
             </div>
           )}
 
-          {/* REGISTER TAB */}
           {tab === "register" && (
             <div className="flex flex-col gap-4">
               <div className="text-center">
@@ -430,8 +429,6 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
                   Choose your unique ID 🌸
                 </p>
               </div>
-
-              {/* Username */}
               <div className="flex flex-col gap-1">
                 <span
                   className="text-xs font-bold px-2"
@@ -477,8 +474,6 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
                   3-20 chars, letters/numbers/underscore
                 </span>
               </div>
-
-              {/* Display name */}
               <div className="flex flex-col gap-1">
                 <span
                   className="text-xs font-bold px-2"
@@ -495,8 +490,6 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
                   data-ocid="login.input"
                 />
               </div>
-
-              {/* Password */}
               <div className="flex flex-col gap-1">
                 <span
                   className="text-xs font-bold px-2"
@@ -513,8 +506,6 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
                   data-ocid="login.input"
                 />
               </div>
-
-              {/* Confirm password */}
               <div className="flex flex-col gap-1">
                 <span
                   className="text-xs font-bold px-2"
@@ -532,7 +523,6 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
                   data-ocid="login.input"
                 />
               </div>
-
               <button
                 type="button"
                 onClick={handleRegister}
@@ -541,9 +531,10 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
                 style={{ background: loading ? "#FFB6C8" : "#FF8C9F" }}
                 data-ocid="login.submit_button"
               >
-                {loading ? "✿ Creating account..." : "Join Chat Me 🎀"}
+                {loading
+                  ? loadingMsg || "Creating account... 💫"
+                  : "Join Chat Me 🎀"}
               </button>
-
               <p className="text-xs text-center" style={{ color: "#7A6E6E" }}>
                 Already have an account?{" "}
                 <button

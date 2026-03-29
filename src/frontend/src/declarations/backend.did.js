@@ -25,6 +25,16 @@ const Message = IDL.Record({
   timestamp: IDL.Int,
 });
 
+const ConversationInfo = IDL.Record({
+  chatId: IDL.Text,
+  otherUserId: IDL.Nat,
+  otherUserName: IDL.Text,
+  otherUserUsername: IDL.Text,
+  otherUserAvatar: IDL.Text,
+  lastMessage: IDL.Text,
+  lastTimestamp: IDL.Int,
+});
+
 const LoginResult = IDL.Variant({
   ok: IDL.Record({ token: IDL.Text, user: PublicUser }),
   err: IDL.Text,
@@ -72,6 +82,16 @@ export const idlFactory = ({ IDL }) => {
     timestamp: IDL.Int,
   });
 
+  const ConversationInfo = IDL.Record({
+    chatId: IDL.Text,
+    otherUserId: IDL.Nat,
+    otherUserName: IDL.Text,
+    otherUserUsername: IDL.Text,
+    otherUserAvatar: IDL.Text,
+    lastMessage: IDL.Text,
+    lastTimestamp: IDL.Int,
+  });
+
   const LoginResult = IDL.Variant({
     ok: IDL.Record({ token: IDL.Text, user: PublicUser }),
     err: IDL.Text,
@@ -108,6 +128,7 @@ export const idlFactory = ({ IDL }) => {
     logout: IDL.Func([IDL.Text], [IDL.Bool], []),
     sendMessage: IDL.Func([IDL.Text, IDL.Text, IDL.Text, IDL.Text], [IDL.Opt(IDL.Nat)], []),
     getMessages: IDL.Func([IDL.Text], [IDL.Vec(Message)], ['query']),
+    getUserConversations: IDL.Func([IDL.Text], [IDL.Vec(ConversationInfo)], []),
     setChatWallpaper: IDL.Func([IDL.Text, IDL.Text, IDL.Text], [IDL.Bool], []),
     getChatWallpaper: IDL.Func([IDL.Text], [IDL.Text], ['query']),
     adminGetStats: IDL.Func([IDL.Text], [IDL.Opt(AdminStats)], []),

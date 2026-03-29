@@ -1,36 +1,40 @@
 # Chat Me
 
 ## Current State
-- Login system uses phone number + OTP (SMS via Fast2SMS)
-- Demo mode creates fake users with `demo-token-XXX` tokens that are not valid backend sessions
-- Username change fails because demo-mode tokens have no backend session → `setUsername` returns `#err("Not logged in")`
-- Users stored in `usersByPhone` HashMap keyed by phone number
-- Auto-generated username on registration (e.g. `@Arun1`)
-- Sessions are stored in transient HashMap restored via pre/postupgrade hooks
+
+User search by @username works ("Find by ID" button). But when user A clicks "Chat" on user B's result:
+- `onOpenChat("DM: @username")` is called — this string becomes BOTH the display name AND the backend `chatId`
+- User B has NO WAY to open the same chat because they don't know user A's chatId string
+- `ChatList.tsx` shows hardcoded fake chats (Art Buddies, Cute Pets Corner, etc.) — no real conversations
+- No backend method to list all conversations for a user
 
 ## Requested Changes (Diff)
 
 ### Add
-- `registerWithPassword(username, password, name)` backend function — stores password in User, keys user by username
-- `loginWithPassword(username, password)` backend function — finds user by username, checks password, creates session
-- New LoginScreen UI: two tabs (Login / Register) with username+password fields
-- Username availability check on Register screen
-- `password` field in User struct
+- Backend: `ConversationInfo` type with chatId, otherUser info, lastMessage, lastTimestamp
+- Backend: `parseNat` helper for parsing UserId from text
+- Backend: `getOtherUserIdFromChatId(chatId, myId)` helper — parses `dm_A_B` format
+- Backend: `getUserConversations(token)` — returns all DM conversations for the logged-in user
+- Frontend: `activeChatId` state in App.tsx separate from `activeChatName`
+- Frontend: Real conversation list in ChatList loaded from backend (polled every 5s)
 
 ### Modify
-- User struct: add `password` field
-- User storage: add secondary lookup by username for login (iterate to find by username)
-- ProfileView: username change still works (changes login credential but does not invalidate current session)
-- App.tsx: no demo-mode fallback that creates fake tokens; if backend unreachable on startup, go to login screen
-- LoginScreen: completely replaced — no phone/OTP flow
+- App.tsx: `openChat(chatId, displayName)` — now takes both chatId (for backend) and displayName (for UI)
+- App.tsx: Pass `chatId` prop to `ActiveChat`
+- ChatList.tsx: `handleStartChat(user)` — compute `dm_${min(myId, theirId)}_${max(myId, theirId)}` as chatId
+- ChatList.tsx: `onOpenChat` interface accepts `(chatId, displayName)` tuple
+- ActiveChat.tsx: Accept `chatId` prop and use it for all backend calls; `chatName` is display-only
+- backend.d.ts: Add `ConversationInfo` interface and `getUserConversations` method
+- backend.did.js: Add `ConversationInfo` IDL type and `getUserConversations` to service
 
 ### Remove
-- Phone OTP login flow from frontend (LoginScreen)
-- Demo mode local token generation
-- Phone number input from registration flow
+- Hardcoded `chats` array in ChatList.tsx
 
 ## Implementation Plan
-1. Backend: Add `password` to User struct, add `registerWithPassword` and `loginWithPassword` functions. Migrate existing users (set empty password for backward compat — they must re-register). Keep all other functions.
-2. Frontend LoginScreen: Replace 3-step OTP UI with simple Login/Register toggle. Register: pick username (with real-time availability check) + name + password + confirm password. Login: username + password.
-3. App.tsx: Remove demo-mode fallback that creates fake tokens. If backend unreachable at startup, redirect to login.
-4. ProfileView: No changes needed — username change already works correctly if session is valid.
+
+1. Update `main.mo` with `ConversationInfo` type, helper functions, and `getUserConversations` method
+2. Update `backend.d.ts` with `ConversationInfo` type and method signature
+3. Update `backend.did.js` with IDL definition
+4. Update `App.tsx` to separate chatId from displayName
+5. Update `ChatList.tsx` to load real conversations and generate proper chatId
+6. Update `ActiveChat.tsx` to accept `chatId` prop and use it for backend calls

@@ -141,6 +141,7 @@ const BUBBLE_SCHEMES = [
 ];
 
 interface ActiveChatProps {
+  chatId: string;
   chatName: string;
   token: string;
   currentUser: PublicUser | null;
@@ -149,6 +150,7 @@ interface ActiveChatProps {
 }
 
 export default function ActiveChat({
+  chatId,
   chatName,
   token,
   currentUser,
@@ -188,7 +190,7 @@ export default function ActiveChat({
     const loadPrefs = async () => {
       try {
         const actor = await getActor();
-        const wallpaperId = await (actor as any).getChatWallpaper(chatName);
+        const wallpaperId = await (actor as any).getChatWallpaper(chatId);
         if (
           wallpaperId &&
           WALLPAPER_PRESETS.find((w) => w.id === wallpaperId)
@@ -198,13 +200,13 @@ export default function ActiveChat({
       } catch {
         // fallback to default
       }
-      const savedBubble = localStorage.getItem(`chatme_bubble_${chatName}`);
+      const savedBubble = localStorage.getItem(`chatme_bubble_${chatId}`);
       if (savedBubble && BUBBLE_SCHEMES.find((b) => b.id === savedBubble)) {
         setActiveBubble(savedBubble);
       }
     };
     loadPrefs();
-  }, [chatName]);
+  }, [chatId]);
 
   const backendToMessage = useCallback(
     (m: {
@@ -239,7 +241,7 @@ export default function ActiveChat({
     const load = async () => {
       try {
         const actor = await getActor();
-        const msgs = await actor.getMessages(chatName);
+        const msgs = await actor.getMessages(chatId);
         const converted = msgs.map(backendToMessage);
         setMessages(converted);
         lastCountRef.current = converted.length;
@@ -248,13 +250,13 @@ export default function ActiveChat({
       }
     };
     load();
-  }, [chatName, backendToMessage]);
+  }, [chatId, backendToMessage]);
 
   useEffect(() => {
     const interval = setInterval(async () => {
       try {
         const actor = await getActor();
-        const msgs = await actor.getMessages(chatName);
+        const msgs = await actor.getMessages(chatId);
         if (msgs.length !== lastCountRef.current) {
           const converted = msgs.map(backendToMessage);
           setMessages(converted);
@@ -265,7 +267,7 @@ export default function ActiveChat({
       }
     }, 3000);
     return () => clearInterval(interval);
-  }, [chatName, backendToMessage]);
+  }, [chatId, backendToMessage]);
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: scroll on new messages
   useEffect(() => {
@@ -305,7 +307,7 @@ export default function ActiveChat({
     setShowWallpaperPicker(false);
     try {
       const actor = await getActor();
-      await (actor as any).setChatWallpaper(token, chatName, wallpaperId);
+      await (actor as any).setChatWallpaper(token, chatId, wallpaperId);
     } catch {
       // local-only fallback
     }
@@ -313,7 +315,7 @@ export default function ActiveChat({
 
   const handleSelectBubble = (bubbleId: string) => {
     setActiveBubble(bubbleId);
-    localStorage.setItem(`chatme_bubble_${chatName}`, bubbleId);
+    localStorage.setItem(`chatme_bubble_${chatId}`, bubbleId);
     setShowBubblePicker(false);
   };
 
@@ -339,8 +341,8 @@ export default function ActiveChat({
 
     try {
       const actor = await getActor();
-      await actor.sendMessage(token, chatName, text, "");
-      const msgs = await actor.getMessages(chatName);
+      await actor.sendMessage(token, chatId, text, "");
+      const msgs = await actor.getMessages(chatId);
       const converted = msgs.map(backendToMessage);
       setMessages(converted);
       lastCountRef.current = converted.length;
@@ -391,7 +393,7 @@ export default function ActiveChat({
     ]);
     try {
       const actor = await getActor();
-      await actor.sendMessage(token, chatName, sticker, "");
+      await actor.sendMessage(token, chatId, sticker, "");
     } catch {
       // ignore
     }

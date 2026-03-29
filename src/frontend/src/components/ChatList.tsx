@@ -1,73 +1,52 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { View } from "../App";
-import type { PublicUser } from "../backend.d";
+import type { ConversationInfo, PublicUser } from "../backend.d";
 import { getActor } from "../lib/actor";
 import BottomNav from "./BottomNav";
-
-const chats = [
-  {
-    name: "Art Buddies",
-    avatar: "🎨",
-    lastMsg: "Sara: 💗✨😊",
-    time: "2:34 PM",
-    unread: 3,
-    grad: "linear-gradient(135deg, #FFD1DC 0%, #FFB6C1 100%)",
-  },
-  {
-    name: "Cute Pets Corner",
-    avatar: "🐾",
-    lastMsg: "Mia: So adorable! 😍🐾",
-    time: "1:12 PM",
-    unread: 0,
-    grad: "linear-gradient(135deg, #E8DFFF 0%, #C1A0FF 100%)",
-  },
-  {
-    name: "Meme Madness",
-    avatar: "😂",
-    lastMsg: "Ben: This meme is too real 😂",
-    time: "11:45 AM",
-    unread: 5,
-    grad: "linear-gradient(135deg, #FFF3C4 0%, #FFD700 100%)",
-  },
-  {
-    name: "Cosplay Crew",
-    avatar: "🎭",
-    lastMsg: "Mia: Just finished my outfit!!",
-    time: "3:20 PM",
-    unread: 1,
-    grad: "linear-gradient(135deg, #C1E1FF 0%, #7BB8F5 100%)",
-  },
-  {
-    name: "Book Nook",
-    avatar: "📚",
-    lastMsg: "Mia: Yes!! It's magical 🌟",
-    time: "10:08 AM",
-    unread: 0,
-    grad: "linear-gradient(135deg, #A0D4FF 0%, #FFDCA0 100%)",
-  },
-];
 
 interface ChatListProps {
   token: string;
   currentUser: PublicUser | null;
-  onOpenChat: (name: string) => void;
+  onOpenChat: (chatId: string, displayName: string) => void;
   onNav: (v: View) => void;
 }
 
 export default function ChatList({
-  token: _token,
+  token,
+  currentUser,
   onOpenChat,
   onNav,
 }: ChatListProps) {
   const [search, setSearch] = useState("");
+  const [realConversations, setRealConversations] = useState<
+    ConversationInfo[]
+  >([]);
   const [usernameSearch, setUsernameSearch] = useState("");
   const [foundUser, setFoundUser] = useState<PublicUser | null>(null);
   const [searching, setSearching] = useState(false);
   const [searchErr, setSearchErr] = useState("");
   const [showFindPanel, setShowFindPanel] = useState(false);
 
-  const filtered = chats.filter((c) =>
-    c.name.toLowerCase().includes(search.toLowerCase()),
+  useEffect(() => {
+    if (!token) return;
+    const load = async () => {
+      try {
+        const actor = await getActor();
+        const convs = await actor.getUserConversations(token);
+        setRealConversations(convs as ConversationInfo[]);
+      } catch {
+        // ignore
+      }
+    };
+    load();
+    const id = setInterval(load, 5000);
+    return () => clearInterval(id);
+  }, [token]);
+
+  const filteredConvs = realConversations.filter(
+    (c) =>
+      c.otherUserName.toLowerCase().includes(search.toLowerCase()) ||
+      c.otherUserUsername.toLowerCase().includes(search.toLowerCase()),
   );
 
   const handleFindUser = async () => {
@@ -92,7 +71,12 @@ export default function ChatList({
   };
 
   const handleStartChat = (user: PublicUser) => {
-    onOpenChat(`DM: @${user.username}`);
+    if (!currentUser) return;
+    const myId = Number(currentUser.id);
+    const theirId = Number(user.id);
+    const chatId = `dm_${Math.min(myId, theirId)}_${Math.max(myId, theirId)}`;
+    const displayName = user.name;
+    onOpenChat(chatId, displayName);
     setShowFindPanel(false);
   };
 
@@ -254,61 +238,78 @@ export default function ChatList({
 
       {/* Chat list */}
       <div className="flex flex-col px-4 py-3 gap-1">
-        {filtered.length === 0 && (
+        {filteredConvs.length === 0 && (
           <div
             className="flex flex-col items-center py-16"
             data-ocid="chatlist.empty_state"
           >
-            <span className="text-4xl mb-3">🔍</span>
+            <span className="text-4xl mb-3">💬</span>
             <p className="text-sm font-semibold" style={{ color: "#7A6E6E" }}>
-              No chats found
+              No chats yet — find a friend by ID! 🌸
             </p>
           </div>
         )}
-        {filtered.map((chat, i) => (
-          <button
-            key={chat.name}
-            type="button"
-            onClick={() => onOpenChat(chat.name)}
-            data-ocid={`chatlist.item.${i + 1}`}
-            className="flex items-center gap-3 px-4 py-3 rounded-2xl transition-all hover:opacity-85 text-left"
-            style={{ background: "#FFFAF5", border: "1.5px solid #FFD1DC" }}
-          >
-            <div
-              className="w-12 h-12 rounded-full flex items-center justify-center text-xl flex-shrink-0"
-              style={{ background: chat.grad }}
+        {filteredConvs.map((conv, i) => {
+          const initials = conv.otherUserName
+            ? conv.otherUserName.slice(0, 2).toUpperCase()
+            : "??";
+          const ts =
+            conv.lastTimestamp > 0n
+              ? new Date(Number(conv.lastTimestamp / 1_000_000n))
+              : null;
+          const timeStr = ts
+            ? ts.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+            : "";
+          return (
+            <button
+              key={conv.chatId}
+              type="button"
+              onClick={() => onOpenChat(conv.chatId, conv.otherUserName)}
+              data-ocid={`chatlist.item.${i + 1}`}
+              className="flex items-center gap-3 px-4 py-3 rounded-2xl transition-all hover:opacity-85 text-left"
+              style={{ background: "#FFFAF5", border: "1.5px solid #FFD1DC" }}
             >
-              {chat.avatar}
-            </div>
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center justify-between">
-                <span
-                  className="font-bold text-sm"
-                  style={{ color: "#1E1E1E" }}
-                >
-                  {chat.name}
-                </span>
-                <span className="text-xs" style={{ color: "#aaa" }}>
-                  {chat.time}
-                </span>
+              <div
+                className="w-12 h-12 rounded-full flex items-center justify-center text-sm font-bold flex-shrink-0 text-white"
+                style={{
+                  background: conv.otherUserAvatar
+                    ? undefined
+                    : "linear-gradient(135deg, #FFB6C1 0%, #C1A0FF 100%)",
+                }}
+              >
+                {conv.otherUserAvatar ? (
+                  <img
+                    src={conv.otherUserAvatar}
+                    alt={initials}
+                    className="w-full h-full rounded-full object-cover"
+                  />
+                ) : (
+                  initials
+                )}
               </div>
-              <p
-                className="text-xs truncate mt-0.5"
-                style={{ color: "#7A6E6E" }}
-              >
-                {chat.lastMsg}
-              </p>
-            </div>
-            {chat.unread > 0 && (
-              <span
-                className="w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold text-white flex-shrink-0"
-                style={{ background: "#FF8C9F" }}
-              >
-                {chat.unread}
-              </span>
-            )}
-          </button>
-        ))}
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center justify-between">
+                  <span
+                    className="font-bold text-sm"
+                    style={{ color: "#1E1E1E" }}
+                  >
+                    {conv.otherUserName}
+                  </span>
+                  <span className="text-xs" style={{ color: "#aaa" }}>
+                    {timeStr}
+                  </span>
+                </div>
+                <p
+                  className="text-xs truncate mt-0.5"
+                  style={{ color: "#7A6E6E" }}
+                >
+                  @{conv.otherUserUsername} ·{" "}
+                  {conv.lastMessage || "Say hello! 👋"}
+                </p>
+              </div>
+            </button>
+          );
+        })}
       </div>
 
       <BottomNav active="chats" onNav={onNav} />

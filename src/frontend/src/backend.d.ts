@@ -29,6 +29,16 @@ export interface Message {
     timestamp: bigint;
 }
 
+export interface ConversationInfo {
+    chatId: string;
+    otherUserId: bigint;
+    otherUserName: string;
+    otherUserUsername: string;
+    otherUserAvatar: string;
+    lastMessage: string;
+    lastTimestamp: bigint;
+}
+
 export type LoginResult = 
     | { ok: { token: string; user: PublicUser } }
     | { err: string };
@@ -68,6 +78,7 @@ export interface backendInterface {
     getAllUsers(): Promise<PublicUser[]>;
     sendMessage(token: string, chatId: string, text: string, imageUrl: string): Promise<[] | [bigint]>;
     getMessages(chatId: string): Promise<Message[]>;
+    getUserConversations(token: string): Promise<ConversationInfo[]>;
     adminGetStats(token: string): Promise<[] | [AdminStats]>;
     setApiKey(token: string, apiKey: string): Promise<boolean>;
     isSmsConfigured(): Promise<boolean>;

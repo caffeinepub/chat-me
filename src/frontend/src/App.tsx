@@ -71,6 +71,7 @@ const deserializeUser = (raw: string): PublicUser | null => {
 export default function App() {
   const [view, setView] = useState<View>("splash");
   const [activeChatName, setActiveChatName] = useState<string>("Art Buddies");
+  const [activeChatId, setActiveChatId] = useState<string>("");
   const [dpUrl, setDpUrl] = useState<string | null>(null);
   const [token, setToken] = useState<string | null>(null);
   const [currentUser, setCurrentUser] = useState<PublicUser | null>(null);
@@ -154,8 +155,9 @@ export default function App() {
     localStorage.setItem("chatme_home_theme", theme);
   };
 
-  const openChat = (chatName: string) => {
-    setActiveChatName(chatName);
+  const openChat = (chatId: string, displayName: string) => {
+    setActiveChatId(chatId);
+    setActiveChatName(displayName);
     setView("activeChat");
   };
 
@@ -193,13 +195,22 @@ export default function App() {
           className="flex gap-5 px-6 py-5 flex-1 items-start"
           style={{ minWidth: "1200px" }}
         >
-          <LeftSidebar onOpenChat={openChat} />
-          <CentralDashboard onJoinChat={openChat} currentUser={currentUser} />
+          <LeftSidebar
+            onOpenChat={(name) =>
+              openChat(`group_${name.toLowerCase().replace(/ /g, "_")}`, name)
+            }
+          />
+          <CentralDashboard
+            onJoinChat={(name) =>
+              openChat(`group_${name.toLowerCase().replace(/ /g, "_")}`, name)
+            }
+            currentUser={currentUser}
+          />
           <ChatPanel
             chatName="Art Buddies"
             messages={[]}
             onSend={() => {}}
-            onOpenChat={() => openChat("Art Buddies")}
+            onOpenChat={() => openChat("group_art_buddies", "Art Buddies")}
           />
           <FeaturedCreations />
         </main>
@@ -232,6 +243,7 @@ export default function App() {
   if (view === "activeChat") {
     return (
       <ActiveChat
+        chatId={activeChatId}
         chatName={activeChatName}
         token={token ?? ""}
         currentUser={currentUser}

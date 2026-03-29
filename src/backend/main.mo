@@ -74,6 +74,16 @@ persistent actor ChatMe {
     timestamp: Int;
   };
 
+  type ConversationInfo = {
+    chatId: Text;
+    otherUserId: UserId;
+    otherUserName: Text;
+    otherUserUsername: Text;
+    otherUserAvatar: Text;
+    lastMessage: Text;
+    lastTimestamp: Int;
+  };
+
   type LoginResult = {
     #ok: { token: Text; user: PublicUser };
     #err: Text;
@@ -177,7 +187,6 @@ persistent actor ChatMe {
     if (usersStableV3.size() > 0) {
       usersById := HashMap.fromIter<UserId, User>(usersStableV3.vals(), 16, Nat.equal, natHash);
     } else if (usersStableV2.size() > 0) {
-      // Migrate from V2 (phone-keyed, had pin field) to new format (id-keyed, password field)
       let buf = Buffer.Buffer<(UserId, User)>(usersStableV2.size());
       for ((_, v2) in usersStableV2.vals()) {
         let u: User = {
@@ -190,7 +199,6 @@ persistent actor ChatMe {
       };
       usersById := HashMap.fromIter<UserId, User>(Buffer.toArray(buf).vals(), 16, Nat.equal, natHash);
     } else if (usersStable.size() > 0) {
-      // Migrate from V1 (no username)
       let buf = Buffer.Buffer<(UserId, User)>(usersStable.size());
       for ((_, v1) in usersStable.vals()) {
         let u: User = {
@@ -207,7 +215,6 @@ persistent actor ChatMe {
     messages := HashMap.fromIter<Nat, Message>(messagesStable.vals(), 64, Nat.equal, natHash);
     otps := HashMap.fromIter<Text, Text>(otpsStable.vals(), 16, Text.equal, Text.hash);
     chatWallpapers := HashMap.fromIter<Text, Text>(wallpapersStable.vals(), 16, Text.equal, Text.hash);
-    // Update counters
     for ((uid, _) in usersById.entries()) {
       if (uid >= nextUserId) { nextUserId := uid + 1; };
     };
@@ -407,6 +414,101 @@ persistent actor ChatMe {
     switch (chatWallpapers.get(chatId)) {
       case null "";
       case (?w) w;
+    };
+  };
+
+  // ===== Conversations =====
+
+  func parseNatText(t: Text): ?Nat {
+    var result: Nat = 0;
+    if (t.size() == 0) return null;
+    var valid = true;
+    for (c in Text.toIter(t)) {
+      if (c >= '0' and c <= '9') {
+        result := result * 10 + Nat32.toNat(Char.toNat32(c) - 48);
+      } else {
+        valid := false;
+      };
+    };
+    if (valid) ?result else null
+  };
+
+  func getOtherUserIdFromChatId(chatId: Text, myId: UserId): ?UserId {
+    switch (Text.stripStart(chatId, #text "dm_")) {
+      case null { null };
+      case (?rest) {
+        var aStr = "";
+        var bStr = "";
+        var foundSep = false;
+        for (c in Text.toIter(rest)) {
+          if (not foundSep) {
+            if (c == '_') { foundSep := true; }
+            else { aStr := aStr # Text.fromChar(c); };
+          } else {
+            bStr := bStr # Text.fromChar(c);
+          };
+        };
+        switch (parseNatText(aStr), parseNatText(bStr)) {
+          case (?a, ?b) {
+            if (a == myId) ?b
+            else if (b == myId) ?a
+            else null
+          };
+          case _ { null };
+        };
+      };
+    };
+  };
+
+  public func getUserConversations(token: Text): async [ConversationInfo] {
+    switch (getUserByToken(token)) {
+      case null { [] };
+      case (?me) {
+        let convMap = HashMap.HashMap<Text, Message>(16, Text.equal, Text.hash);
+        for ((_, m) in messages.entries()) {
+          let involved: Bool = if (m.senderId == me.id) {
+            true
+          } else {
+            switch (getOtherUserIdFromChatId(m.chatId, me.id)) {
+              case null { false };
+              case (?_) { true };
+            }
+          };
+          if (involved) {
+            switch (convMap.get(m.chatId)) {
+              case null { convMap.put(m.chatId, m); };
+              case (?existing) {
+                if (m.timestamp > existing.timestamp) {
+                  convMap.put(m.chatId, m);
+                };
+              };
+            };
+          };
+        };
+        let buf = Buffer.Buffer<ConversationInfo>(convMap.size());
+        for ((chatId, lastMsg) in convMap.entries()) {
+          switch (getOtherUserIdFromChatId(chatId, me.id)) {
+            case null {};
+            case (?otherId) {
+              switch (usersById.get(otherId)) {
+                case null {};
+                case (?otherUser) {
+                  buf.add({
+                    chatId = chatId;
+                    otherUserId = otherId;
+                    otherUserName = otherUser.name;
+                    otherUserUsername = otherUser.username;
+                    otherUserAvatar = otherUser.avatarUrl;
+                    lastMessage = if (lastMsg.text == "") "[Media]" else lastMsg.text;
+                    lastTimestamp = lastMsg.timestamp;
+                  });
+                };
+              };
+            };
+          };
+        };
+        Buffer.toArray(buf)
+      };
     };
   };
 
