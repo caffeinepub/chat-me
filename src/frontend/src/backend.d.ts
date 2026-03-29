@@ -84,4 +84,8 @@ export interface backendInterface {
     isSmsConfigured(): Promise<boolean>;
     registerWithPassword(username: string, password: string, name: string): Promise<RegisterResult>;
     loginWithPassword(username: string, password: string): Promise<LoginResult>;
+    heartbeat(token: string): Promise<boolean>;
+    isUserOnline(userId: bigint): Promise<boolean>;
+    setChatWallpaper(token: string, chatId: string, wallpaper: string): Promise<boolean>;
+    getChatWallpaper(chatId: string): Promise<string>;
 }

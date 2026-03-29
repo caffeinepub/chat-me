@@ -140,6 +140,16 @@ const BUBBLE_SCHEMES = [
   },
 ];
 
+const getOtherUserId = (chatId: string, myId: number): number | null => {
+  const match = chatId.match(/^dm_(\d+)_(\d+)$/);
+  if (!match) return null;
+  const a = Number.parseInt(match[1]);
+  const b = Number.parseInt(match[2]);
+  if (a === myId) return b;
+  if (b === myId) return a;
+  return null;
+};
+
 interface ActiveChatProps {
   chatId: string;
   chatName: string;
@@ -171,6 +181,7 @@ export default function ActiveChat({
   const [activeBubble, setActiveBubble] = useState("pink");
   const [sendError, setSendError] = useState("");
   const [sessionExpired, setSessionExpired] = useState(false);
+  const [isOtherOnline, setIsOtherOnline] = useState(false);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -209,6 +220,43 @@ export default function ActiveChat({
     };
     loadPrefs();
   }, [chatId]);
+
+  // Heartbeat: mark current user as online every 10 seconds
+  useEffect(() => {
+    if (!token) return;
+    const sendHeartbeat = async () => {
+      try {
+        const actor = await getActor();
+        await (actor as any).heartbeat(token);
+      } catch {
+        // silent
+      }
+    };
+    sendHeartbeat();
+    const id = setInterval(sendHeartbeat, 10000);
+    return () => clearInterval(id);
+  }, [token]);
+
+  // Poll other user's online status every 5 seconds
+  useEffect(() => {
+    if (!currentUser) return;
+    const myId = Number(currentUser.id);
+    const otherUserId = getOtherUserId(chatId, myId);
+    if (otherUserId === null) return;
+
+    const checkOnline = async () => {
+      try {
+        const actor = await getActor();
+        const online = await (actor as any).isUserOnline(BigInt(otherUserId));
+        setIsOtherOnline(!!online);
+      } catch {
+        // ignore
+      }
+    };
+    checkOnline();
+    const id = setInterval(checkOnline, 5000);
+    return () => clearInterval(id);
+  }, [chatId, currentUser]);
 
   const backendToMessage = useCallback(
     (m: {
@@ -265,7 +313,7 @@ export default function ActiveChat({
       } catch {
         // ignore
       }
-    }, 3000);
+    }, 1000);
     return () => clearInterval(interval);
   }, [chatId, backendToMessage]);
 
@@ -501,8 +549,12 @@ export default function ActiveChat({
           <p className="font-bold text-sm" style={{ color: "#1E1E1E" }}>
             {chatName}
           </p>
-          <p className="text-xs" style={{ color: "#FF8C9F" }}>
-            🟢 online · {messages.length} messages
+          <p
+            className="text-xs"
+            style={{ color: isOtherOnline ? "#22c55e" : "#aaa" }}
+          >
+            {isOtherOnline ? "🟢 Online" : "⚫ Offline"} · {messages.length}{" "}
+            messages
           </p>
         </div>
 

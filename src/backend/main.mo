@@ -15,7 +15,6 @@ persistent actor ChatMe {
 
   type UserId = Nat;
 
-  // V1 user type -- kept for stable var compatibility
   type UserV1 = {
     id: UserId;
     phone: Text;
@@ -27,7 +26,6 @@ persistent actor ChatMe {
     isAdmin: Bool;
   };
 
-  // V2 user type (had username but still phone-keyed) -- kept for stable var compatibility
   type UserV2 = {
     id: UserId;
     phone: Text;
@@ -40,7 +38,6 @@ persistent actor ChatMe {
     isAdmin: Bool;
   };
 
-  // Current user type: password-based, id-keyed
   type User = {
     id: UserId;
     username: Text;
@@ -136,16 +133,15 @@ persistent actor ChatMe {
   var nextMsgId: Nat = 1;
   var smsApiKey: Text = "Sg3vELGdycTE87SwuoAGIlnKB2h4ndN20zuhAKyWesTeLZ5eup84KUwhTTnu";
 
-  // Old stable vars -- kept with original types for upgrade compatibility
   var usersStable: [(Text, UserV1)] = [];
   var usersStableV2: [(Text, UserV2)] = [];
-  // New stable var keyed by UserId
   var usersStableV3: [(UserId, User)] = [];
 
   var sessionsStable: [(Text, UserId)] = [];
   var messagesStable: [(Nat, Message)] = [];
   var otpsStable: [(Text, Text)] = [];
   var wallpapersStable: [(Text, Text)] = [];
+  var lastSeenStable: [(UserId, Int)] = [];
 
   func natHash(n: Nat): Nat32 { Nat32.fromNat(n % 4294967295) };
 
@@ -154,6 +150,7 @@ persistent actor ChatMe {
   transient var messages : HashMap.HashMap<Nat, Message> = HashMap.HashMap(64, Nat.equal, natHash);
   transient var otps : HashMap.HashMap<Text, Text> = HashMap.HashMap(16, Text.equal, Text.hash);
   transient var chatWallpapers : HashMap.HashMap<Text, Text> = HashMap.HashMap(16, Text.equal, Text.hash);
+  transient var lastSeen : HashMap.HashMap<UserId, Int> = HashMap.HashMap(16, Nat.equal, natHash);
 
   func makeAutoUsername(name: Text, uid: Nat): Text {
     var base = "";
@@ -178,7 +175,7 @@ persistent actor ChatMe {
     messagesStable := Iter.toArray(messages.entries());
     otpsStable := Iter.toArray(otps.entries());
     wallpapersStable := Iter.toArray(chatWallpapers.entries());
-    // Clear old format stable vars
+    lastSeenStable := Iter.toArray(lastSeen.entries());
     usersStable := [];
     usersStableV2 := [];
   };
@@ -215,6 +212,7 @@ persistent actor ChatMe {
     messages := HashMap.fromIter<Nat, Message>(messagesStable.vals(), 64, Nat.equal, natHash);
     otps := HashMap.fromIter<Text, Text>(otpsStable.vals(), 16, Text.equal, Text.hash);
     chatWallpapers := HashMap.fromIter<Text, Text>(wallpapersStable.vals(), 16, Text.equal, Text.hash);
+    lastSeen := HashMap.fromIter<UserId, Int>(lastSeenStable.vals(), 16, Nat.equal, natHash);
     for ((uid, _) in usersById.entries()) {
       if (uid >= nextUserId) { nextUserId := uid + 1; };
     };
@@ -228,6 +226,7 @@ persistent actor ChatMe {
     messagesStable := [];
     otpsStable := [];
     wallpapersStable := [];
+    lastSeenStable := [];
   };
 
   func makeToken(userId: Nat): Text {
@@ -284,7 +283,29 @@ persistent actor ChatMe {
     null;
   };
 
-  // ===== New: Username + Password login =====
+  // ===== Online Presence =====
+
+  // Call this every ~10 seconds from the frontend to mark user as online
+  public func heartbeat(token: Text): async Bool {
+    switch (getUserByToken(token)) {
+      case null false;
+      case (?u) {
+        lastSeen.put(u.id, Time.now());
+        true;
+      };
+    };
+  };
+
+  // Returns true if user was last seen within 30 seconds
+  public query func isUserOnline(userId: UserId): async Bool {
+    let threshold: Int = 30_000_000_000; // 30 seconds in nanoseconds
+    switch (lastSeen.get(userId)) {
+      case null false;
+      case (?ts) { Time.now() - ts < threshold };
+    };
+  };
+
+  // ===== Username + Password login =====
 
   public func registerWithPassword(username: Text, password: Text, name: Text): async RegisterResult {
     if (username == "" or password == "" or name == "") return #err("All fields required");
@@ -301,6 +322,7 @@ persistent actor ChatMe {
     usersById.put(uid, user);
     let token = makeToken(uid);
     sessions.put(token, uid);
+    lastSeen.put(uid, Time.now());
     #ok({ userId = uid; token = token });
   };
 
@@ -312,6 +334,7 @@ persistent actor ChatMe {
         if (u.password != password) return #err("Wrong password. Please try again.");
         let token = makeToken(u.id);
         sessions.put(token, u.id);
+        lastSeen.put(u.id, Time.now());
         #ok({ token = token; user = toPublic(u) });
       };
     };
@@ -383,6 +406,8 @@ persistent actor ChatMe {
           text = text; imageUrl = imageUrl; timestamp = Time.now();
         };
         messages.put(msgId, msg);
+        // Update last seen on activity
+        lastSeen.put(u.id, Time.now());
         ?msgId;
       };
     };

@@ -4,62 +4,6 @@
 
 import { IDL } from '@icp-sdk/core/candid';
 
-const PublicUser = IDL.Record({
-  id: IDL.Nat,
-  username: IDL.Text,
-  name: IDL.Text,
-  about: IDL.Text,
-  avatarUrl: IDL.Text,
-  phone: IDL.Text,
-  joinedAt: IDL.Int,
-  isAdmin: IDL.Bool,
-});
-
-const Message = IDL.Record({
-  id: IDL.Nat,
-  chatId: IDL.Text,
-  senderId: IDL.Nat,
-  senderName: IDL.Text,
-  text: IDL.Text,
-  imageUrl: IDL.Text,
-  timestamp: IDL.Int,
-});
-
-const ConversationInfo = IDL.Record({
-  chatId: IDL.Text,
-  otherUserId: IDL.Nat,
-  otherUserName: IDL.Text,
-  otherUserUsername: IDL.Text,
-  otherUserAvatar: IDL.Text,
-  lastMessage: IDL.Text,
-  lastTimestamp: IDL.Int,
-});
-
-const LoginResult = IDL.Variant({
-  ok: IDL.Record({ token: IDL.Text, user: PublicUser }),
-  err: IDL.Text,
-});
-
-const RegisterResult = IDL.Variant({
-  ok: IDL.Record({ userId: IDL.Nat, token: IDL.Text }),
-  err: IDL.Text,
-});
-
-const OtpResult = IDL.Variant({
-  ok: IDL.Text,
-  err: IDL.Text,
-});
-
-const SetUsernameResult = IDL.Variant({
-  ok: IDL.Null,
-  err: IDL.Text,
-});
-
-const AdminStats = IDL.Record({
-  userCount: IDL.Nat,
-  users: IDL.Vec(PublicUser),
-});
-
 export const idlFactory = ({ IDL }) => {
   const PublicUser = IDL.Record({
     id: IDL.Nat,
@@ -131,6 +75,8 @@ export const idlFactory = ({ IDL }) => {
     getUserConversations: IDL.Func([IDL.Text], [IDL.Vec(ConversationInfo)], []),
     setChatWallpaper: IDL.Func([IDL.Text, IDL.Text, IDL.Text], [IDL.Bool], []),
     getChatWallpaper: IDL.Func([IDL.Text], [IDL.Text], ['query']),
+    heartbeat: IDL.Func([IDL.Text], [IDL.Bool], []),
+    isUserOnline: IDL.Func([IDL.Nat], [IDL.Bool], ['query']),
     adminGetStats: IDL.Func([IDL.Text], [IDL.Opt(AdminStats)], []),
     getAllUsers: IDL.Func([], [IDL.Vec(PublicUser)], ['query']),
     getUserById: IDL.Func([IDL.Nat], [IDL.Opt(PublicUser)], ['query']),

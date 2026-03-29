@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import type { View } from "../App";
 import type { ConversationInfo, PublicUser } from "../backend.d";
-import { withRetry } from "../lib/actor";
+import { getActor, withRetry } from "../lib/actor";
 import BottomNav from "./BottomNav";
 
 interface ChatListProps {
@@ -21,6 +21,8 @@ export default function ChatList({
   const [realConversations, setRealConversations] = useState<
     ConversationInfo[]
   >([]);
+  const [pendingChats, setPendingChats] = useState<ConversationInfo[]>([]);
+  const [onlineUsers, setOnlineUsers] = useState<Set<string>>(new Set());
   const [usernameSearch, setUsernameSearch] = useState("");
   const [foundUser, setFoundUser] = useState<PublicUser | null>(null);
   const [searching, setSearching] = useState(false);
@@ -35,16 +37,46 @@ export default function ChatList({
           actor.getUserConversations(token),
         );
         setRealConversations(convs as ConversationInfo[]);
+        // Check online status for each conversation's other user
+        try {
+          const actor = await getActor();
+          const onlineChecks = await Promise.all(
+            (convs as ConversationInfo[]).map((c) =>
+              (actor as any)
+                .isUserOnline(c.otherUserId)
+                .then((v: boolean) => ({
+                  id: c.otherUserId.toString(),
+                  online: v,
+                }))
+                .catch(() => ({ id: c.otherUserId.toString(), online: false })),
+            ),
+          );
+          const onlineSet = new Set<string>(
+            onlineChecks
+              .filter((x: { id: string; online: boolean }) => x.online)
+              .map((x: { id: string; online: boolean }) => x.id),
+          );
+          setOnlineUsers(onlineSet);
+        } catch {
+          // ignore
+        }
       } catch {
         // ignore
       }
     };
     load();
-    const id = setInterval(load, 5000);
+    const id = setInterval(load, 2000);
     return () => clearInterval(id);
   }, [token]);
 
-  const filteredConvs = realConversations.filter(
+  const mergedConversations = [
+    ...realConversations,
+    ...pendingChats.filter(
+      (p) => !realConversations.some((r) => r.chatId === p.chatId),
+    ),
+  ];
+
+  const filteredConvs = mergedConversations.filter(
     (c) =>
       c.otherUserName.toLowerCase().includes(search.toLowerCase()) ||
       c.otherUserUsername.toLowerCase().includes(search.toLowerCase()),
@@ -76,6 +108,25 @@ export default function ChatList({
     const theirId = Number(user.id);
     const chatId = `dm_${Math.min(myId, theirId)}_${Math.max(myId, theirId)}`;
     const displayName = user.name;
+
+    // Add to pending chats immediately so it appears in list
+    const alreadyExists = realConversations.some((c) => c.chatId === chatId);
+    if (!alreadyExists) {
+      const pending: ConversationInfo = {
+        chatId,
+        otherUserId: user.id,
+        otherUserName: user.name,
+        otherUserUsername: user.username,
+        otherUserAvatar: user.avatarUrl,
+        lastMessage: "Say hello! 👋",
+        lastTimestamp: 0n,
+      };
+      setPendingChats((prev) => {
+        const exists = prev.some((c) => c.chatId === pending.chatId);
+        return exists ? prev : [pending, ...prev];
+      });
+    }
+
     onOpenChat(chatId, displayName);
     setShowFindPanel(false);
   };
@@ -260,6 +311,7 @@ export default function ChatList({
           const timeStr = ts
             ? ts.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
             : "";
+          const isOnline = onlineUsers.has(conv.otherUserId.toString());
           return (
             <button
               key={conv.chatId}
@@ -269,22 +321,30 @@ export default function ChatList({
               className="flex items-center gap-3 px-4 py-3 rounded-2xl transition-all hover:opacity-85 text-left"
               style={{ background: "#FFFAF5", border: "1.5px solid #FFD1DC" }}
             >
-              <div
-                className="w-12 h-12 rounded-full flex items-center justify-center text-sm font-bold flex-shrink-0 text-white"
-                style={{
-                  background: conv.otherUserAvatar
-                    ? undefined
-                    : "linear-gradient(135deg, #FFB6C1 0%, #C1A0FF 100%)",
-                }}
-              >
-                {conv.otherUserAvatar ? (
-                  <img
-                    src={conv.otherUserAvatar}
-                    alt={initials}
-                    className="w-full h-full rounded-full object-cover"
+              <div className="relative flex-shrink-0">
+                <div
+                  className="w-12 h-12 rounded-full flex items-center justify-center text-sm font-bold text-white"
+                  style={{
+                    background: conv.otherUserAvatar
+                      ? undefined
+                      : "linear-gradient(135deg, #FFB6C1 0%, #C1A0FF 100%)",
+                  }}
+                >
+                  {conv.otherUserAvatar ? (
+                    <img
+                      src={conv.otherUserAvatar}
+                      alt={initials}
+                      className="w-full h-full rounded-full object-cover"
+                    />
+                  ) : (
+                    initials
+                  )}
+                </div>
+                {isOnline && (
+                  <span
+                    className="absolute bottom-0 right-0 w-3 h-3 rounded-full border-2 border-white"
+                    style={{ background: "#22c55e" }}
                   />
-                ) : (
-                  initials
                 )}
               </div>
               <div className="flex-1 min-w-0">
