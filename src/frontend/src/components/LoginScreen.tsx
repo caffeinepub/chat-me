@@ -13,6 +13,7 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [successMsg, setSuccessMsg] = useState("");
+  const [showDemoBtn, setShowDemoBtn] = useState(false);
 
   // Login fields
   const [loginUsername, setLoginUsername] = useState("");
@@ -67,6 +68,23 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
     return () => clearTimeout(timer);
   }, [regUsername]);
 
+  const enterDemoMode = (username: string, name: string) => {
+    const uname = username || "demo_user";
+    const dname = name || "Demo User";
+    const demoToken = `demo-${uname}-${Date.now()}`;
+    const fakeUser: PublicUser = {
+      id: BigInt(1),
+      username: uname,
+      name: dname,
+      about: "Demo account",
+      avatarUrl: "",
+      phone: "",
+      joinedAt: BigInt(Date.now()),
+      isAdmin: false,
+    };
+    onLogin(demoToken, fakeUser);
+  };
+
   const handleLogin = async () => {
     const uname = loginUsername.trim();
     const pass = loginPassword.trim();
@@ -81,6 +99,7 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
     setLoading(true);
     setError("");
     setSuccessMsg("");
+    setShowDemoBtn(false);
     try {
       const actor = await getActor();
       const result = await actor.loginWithPassword(uname, pass);
@@ -91,6 +110,7 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
       }
     } catch {
       setError("Could not reach server. Please try again 📡");
+      setShowDemoBtn(true);
     } finally {
       setLoading(false);
     }
@@ -130,6 +150,7 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
     setLoading(true);
     setError("");
     setSuccessMsg("");
+    setShowDemoBtn(false);
     try {
       const actor = await getActor();
       const result = await actor.registerWithPassword(uname, pass, name);
@@ -146,6 +167,7 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
       }
     } catch {
       setError("Could not reach server. Please try again 📡");
+      setShowDemoBtn(true);
     } finally {
       setLoading(false);
     }
@@ -155,6 +177,7 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
     setTab(t);
     setError("");
     setSuccessMsg("");
+    setShowDemoBtn(false);
   };
 
   return (
@@ -260,6 +283,25 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
             >
               {error}
             </div>
+          )}
+          {showDemoBtn && (
+            <button
+              type="button"
+              onClick={() =>
+                tab === "login"
+                  ? enterDemoMode(loginUsername.trim(), "")
+                  : enterDemoMode(regUsername.trim(), regName.trim())
+              }
+              className="w-full py-3 rounded-full font-bold text-sm transition-all hover:opacity-85"
+              style={{
+                background: "transparent",
+                border: "2px solid #FF8C9F",
+                color: "#FF8C9F",
+              }}
+              data-ocid="login.secondary_button"
+            >
+              🎮 Continue in Demo Mode
+            </button>
           )}
           {successMsg && (
             <div

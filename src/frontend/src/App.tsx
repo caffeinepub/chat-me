@@ -55,6 +55,19 @@ const serializeUser = (user: PublicUser): string => {
   );
 };
 
+const deserializeUser = (raw: string): PublicUser | null => {
+  try {
+    return JSON.parse(raw, (_, value) => {
+      if (typeof value === "string" && value.startsWith("__bigint__")) {
+        return BigInt(value.slice(10));
+      }
+      return value;
+    }) as PublicUser;
+  } catch {
+    return null;
+  }
+};
+
 export default function App() {
   const [view, setView] = useState<View>("splash");
   const [activeChatName, setActiveChatName] = useState<string>("Art Buddies");
@@ -91,7 +104,21 @@ export default function App() {
           setView("login");
         }
       } catch {
-        // Backend unreachable - clear any stale tokens and redirect to login
+        // Backend unreachable
+        if (savedToken.startsWith("demo-")) {
+          // Restore demo session from localStorage
+          const savedUser = localStorage.getItem("chatme_user");
+          if (savedUser) {
+            const user = deserializeUser(savedUser);
+            if (user) {
+              setToken(savedToken);
+              setCurrentUser(user);
+              setDpUrl(user.avatarUrl || null);
+              setView("home");
+              return;
+            }
+          }
+        }
         localStorage.removeItem("chatme_token");
         localStorage.removeItem("chatme_user");
         setView("login");
