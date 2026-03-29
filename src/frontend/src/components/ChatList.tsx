@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import type { View } from "../App";
 import type { ConversationInfo, PublicUser } from "../backend.d";
-import { getActor } from "../lib/actor";
+import { withRetry } from "../lib/actor";
 import BottomNav from "./BottomNav";
 
 interface ChatListProps {
@@ -31,8 +31,9 @@ export default function ChatList({
     if (!token) return;
     const load = async () => {
       try {
-        const actor = await getActor();
-        const convs = await actor.getUserConversations(token);
+        const convs = await withRetry((actor) =>
+          actor.getUserConversations(token),
+        );
         setRealConversations(convs as ConversationInfo[]);
       } catch {
         // ignore
@@ -56,8 +57,7 @@ export default function ChatList({
     setFoundUser(null);
     setSearchErr("");
     try {
-      const actor = await getActor();
-      const result = await actor.getUserByUsername(uname);
+      const result = await withRetry((actor) => actor.getUserByUsername(uname));
       if (result && result.length > 0) {
         setFoundUser(result[0] as PublicUser);
       } else {

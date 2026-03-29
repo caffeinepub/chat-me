@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { Message, View } from "../App";
 import type { PublicUser } from "../backend.d";
-import { getActor } from "../lib/actor";
+import { getActor, withRetry } from "../lib/actor";
 import BottomNav from "./BottomNav";
 
 const senderGrad: Record<string, string> = {
@@ -169,6 +169,8 @@ export default function ActiveChat({
   const [showBubblePicker, setShowBubblePicker] = useState(false);
   const [activeWallpaper, setActiveWallpaper] = useState("default");
   const [activeBubble, setActiveBubble] = useState("pink");
+  const [sendError, setSendError] = useState("");
+  const [sessionExpired, setSessionExpired] = useState(false);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -240,8 +242,7 @@ export default function ActiveChat({
   useEffect(() => {
     const load = async () => {
       try {
-        const actor = await getActor();
-        const msgs = await actor.getMessages(chatId);
+        const msgs = await withRetry((actor) => actor.getMessages(chatId));
         const converted = msgs.map(backendToMessage);
         setMessages(converted);
         lastCountRef.current = converted.length;
@@ -255,8 +256,7 @@ export default function ActiveChat({
   useEffect(() => {
     const interval = setInterval(async () => {
       try {
-        const actor = await getActor();
-        const msgs = await actor.getMessages(chatId);
+        const msgs = await withRetry((actor) => actor.getMessages(chatId));
         if (msgs.length !== lastCountRef.current) {
           const converted = msgs.map(backendToMessage);
           setMessages(converted);
@@ -324,10 +324,12 @@ export default function ActiveChat({
     const text = input.trim();
     setInput("");
     setShowEmoji(false);
+    setSendError("");
     inputRef.current?.focus();
 
+    const optimisticId = Date.now();
     const optimisticMsg: Message = {
-      id: Date.now(),
+      id: optimisticId,
       sender: currentUser?.name ?? "You",
       side: "right",
       text,
@@ -340,14 +342,30 @@ export default function ActiveChat({
     setMessages((prev) => [...prev, optimisticMsg]);
 
     try {
-      const actor = await getActor();
-      await actor.sendMessage(token, chatId, text, "");
-      const msgs = await actor.getMessages(chatId);
+      const result = await withRetry((actor) =>
+        actor.sendMessage(token, chatId, text, ""),
+      );
+      // result is [] | [bigint] — empty array means failure/session expired
+      if (!result || result.length === 0) {
+        // Revert optimistic message
+        setMessages((prev) => prev.filter((m) => m.id !== optimisticId));
+        setSessionExpired(true);
+        setSendError(
+          "Message failed to send. Your session may have expired — please log in again.",
+        );
+        return;
+      }
+      // Success: refresh messages from backend
+      const msgs = await withRetry((actor) => actor.getMessages(chatId));
       const converted = msgs.map(backendToMessage);
       setMessages(converted);
       lastCountRef.current = converted.length;
     } catch {
-      // keep optimistic
+      // Revert optimistic message on network error
+      setMessages((prev) => prev.filter((m) => m.id !== optimisticId));
+      setSendError(
+        "Could not send message. Please check your connection and try again.",
+      );
     }
   };
 
@@ -377,25 +395,43 @@ export default function ActiveChat({
 
   const handleStickerSend = async (sticker: string) => {
     setShowMediaPicker(false);
-    setMessages((prev) => [
-      ...prev,
-      {
-        id: Date.now(),
-        sender: currentUser?.name ?? "You",
-        side: "right",
-        text: sticker,
-        time: new Date().toLocaleTimeString([], {
-          hour: "2-digit",
-          minute: "2-digit",
-        }),
-        status: "sent",
-      },
-    ]);
+    setSendError("");
+
+    const optimisticId = Date.now();
+    const optimisticMsg: Message = {
+      id: optimisticId,
+      sender: currentUser?.name ?? "You",
+      side: "right",
+      text: sticker,
+      time: new Date().toLocaleTimeString([], {
+        hour: "2-digit",
+        minute: "2-digit",
+      }),
+      status: "sent",
+    };
+    setMessages((prev) => [...prev, optimisticMsg]);
+
     try {
-      const actor = await getActor();
-      await actor.sendMessage(token, chatId, sticker, "");
+      const result = await withRetry((actor) =>
+        actor.sendMessage(token, chatId, sticker, ""),
+      );
+      if (!result || result.length === 0) {
+        setMessages((prev) => prev.filter((m) => m.id !== optimisticId));
+        setSessionExpired(true);
+        setSendError(
+          "Message failed to send. Your session may have expired — please log in again.",
+        );
+        return;
+      }
+      const msgs = await withRetry((actor) => actor.getMessages(chatId));
+      const converted = msgs.map(backendToMessage);
+      setMessages(converted);
+      lastCountRef.current = converted.length;
     } catch {
-      // ignore
+      setMessages((prev) => prev.filter((m) => m.id !== optimisticId));
+      setSendError(
+        "Could not send sticker. Please check your connection and try again.",
+      );
     }
   };
 
@@ -522,6 +558,62 @@ export default function ActiveChat({
           )}
         </div>
       </div>
+
+      {/* Session expired banner */}
+      {sessionExpired && (
+        <div
+          className="flex items-center justify-between gap-3 px-4 py-3"
+          style={{
+            background: "#FFF0F0",
+            borderBottom: "1.5px solid #FFAAAA",
+          }}
+          data-ocid="activechat.error_state"
+        >
+          <p
+            className="text-xs font-semibold flex-1"
+            style={{ color: "#C0304A" }}
+          >
+            ⚠️ Session expired. Please go back and log in again.
+          </p>
+          <button
+            type="button"
+            onClick={onBack}
+            className="px-3 py-1.5 rounded-full text-xs font-bold text-white hover:opacity-85 transition-all flex-shrink-0"
+            style={{ background: "#FF8C9F" }}
+            data-ocid="activechat.back.button"
+          >
+            ← Back
+          </button>
+        </div>
+      )}
+
+      {/* Send error banner */}
+      {sendError && !sessionExpired && (
+        <div
+          className="flex items-center justify-between gap-3 px-4 py-2"
+          style={{
+            background: "#FFF5F0",
+            borderBottom: "1.5px solid #FFCCAA",
+          }}
+          data-ocid="activechat.error_state"
+        >
+          <p
+            className="text-xs font-semibold flex-1"
+            style={{ color: "#C06030" }}
+          >
+            ⚠️ {sendError}
+          </p>
+          <button
+            type="button"
+            onClick={() => setSendError("")}
+            className="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold hover:opacity-70 flex-shrink-0"
+            style={{ background: "#FFE4D0", color: "#C06030" }}
+            data-ocid="activechat.close_button"
+          >
+            ✕
+          </button>
+        </div>
+      )}
 
       {/* Messages area */}
       <div
