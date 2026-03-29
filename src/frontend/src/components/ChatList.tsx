@@ -1,6 +1,7 @@
 import { useState } from "react";
 import type { View } from "../App";
 import type { PublicUser } from "../backend.d";
+import { getActor } from "../lib/actor";
 import BottomNav from "./BottomNav";
 
 const chats = [
@@ -44,30 +45,6 @@ const chats = [
     unread: 0,
     grad: "linear-gradient(135deg, #A0D4FF 0%, #FFDCA0 100%)",
   },
-  {
-    name: "DM: Ben",
-    avatar: "🌈",
-    lastMsg: "Hey! Did you see my new artwork? 🎨",
-    time: "9:30 AM",
-    unread: 0,
-    grad: "linear-gradient(135deg, #FFD1A1 0%, #FFA0A0 100%)",
-  },
-  {
-    name: "DM: Sara",
-    avatar: "🌸",
-    lastMsg: "Hiiii 🌸 What are you drawing today?",
-    time: "Yesterday",
-    unread: 0,
-    grad: "linear-gradient(135deg, #A0D4FF 0%, #C1A0FF 100%)",
-  },
-  {
-    name: "DM: Mia",
-    avatar: "🎀",
-    lastMsg: "Can we collab on something cute? 🎀",
-    time: "Mon",
-    unread: 0,
-    grad: "linear-gradient(135deg, #A0FFCA 0%, #A0D4FF 100%)",
-  },
 ];
 
 interface ChatListProps {
@@ -77,12 +54,47 @@ interface ChatListProps {
   onNav: (v: View) => void;
 }
 
-export default function ChatList({ onOpenChat, onNav }: ChatListProps) {
+export default function ChatList({
+  token: _token,
+  onOpenChat,
+  onNav,
+}: ChatListProps) {
   const [search, setSearch] = useState("");
+  const [usernameSearch, setUsernameSearch] = useState("");
+  const [foundUser, setFoundUser] = useState<PublicUser | null>(null);
+  const [searching, setSearching] = useState(false);
+  const [searchErr, setSearchErr] = useState("");
+  const [showFindPanel, setShowFindPanel] = useState(false);
 
   const filtered = chats.filter((c) =>
     c.name.toLowerCase().includes(search.toLowerCase()),
   );
+
+  const handleFindUser = async () => {
+    const uname = usernameSearch.replace("@", "").trim();
+    if (!uname) return;
+    setSearching(true);
+    setFoundUser(null);
+    setSearchErr("");
+    try {
+      const actor = await getActor();
+      const result = await actor.getUserByUsername(uname);
+      if (result && result.length > 0) {
+        setFoundUser(result[0] as PublicUser);
+      } else {
+        setSearchErr("No user found with this username 😔");
+      }
+    } catch {
+      setSearchErr("Could not search. Please try again 📡");
+    } finally {
+      setSearching(false);
+    }
+  };
+
+  const handleStartChat = (user: PublicUser) => {
+    onOpenChat(`DM: @${user.username}`);
+    setShowFindPanel(false);
+  };
 
   return (
     <div
@@ -104,14 +116,109 @@ export default function ChatList({ onOpenChat, onNav }: ChatListProps) {
           </h1>
           <button
             type="button"
-            onClick={() => alert("New chat coming soon! 🌸")}
+            onClick={() => setShowFindPanel(!showFindPanel)}
             data-ocid="chatlist.open_modal_button"
-            className="w-9 h-9 rounded-full flex items-center justify-center text-white font-bold text-xl hover:opacity-85 transition-all"
+            className="flex items-center gap-1 px-3 py-2 rounded-full text-white font-bold text-xs hover:opacity-85 transition-all"
             style={{ background: "#FF8C9F" }}
           >
-            +
+            🔍 Find by ID
           </button>
         </div>
+
+        {/* Find user by username */}
+        {showFindPanel && (
+          <div
+            className="mb-3 rounded-2xl p-4 flex flex-col gap-3"
+            style={{ background: "#F5F0FF", border: "1.5px solid #C4B5FD" }}
+          >
+            <p className="text-xs font-bold" style={{ color: "#7A5AF8" }}>
+              Find someone by their @username 💜
+            </p>
+            <div className="flex gap-2">
+              <div className="relative flex-1">
+                <span
+                  className="absolute left-3 top-1/2 -translate-y-1/2 text-sm font-bold"
+                  style={{ color: "#7A5AF8" }}
+                >
+                  @
+                </span>
+                <input
+                  type="text"
+                  value={usernameSearch}
+                  onChange={(e) => setUsernameSearch(e.target.value)}
+                  placeholder="username"
+                  className="w-full pl-7 pr-3 py-2 rounded-full text-sm outline-none"
+                  style={{
+                    background: "white",
+                    border: "1.5px solid #C4B5FD",
+                    color: "#1E1E1E",
+                  }}
+                  onKeyDown={(e) => e.key === "Enter" && handleFindUser()}
+                  data-ocid="chatlist.username_search_input"
+                />
+              </div>
+              <button
+                type="button"
+                onClick={handleFindUser}
+                disabled={searching}
+                className="px-4 py-2 rounded-full text-xs font-bold text-white hover:opacity-85 transition-all"
+                style={{ background: searching ? "#C4B5FD" : "#7A5AF8" }}
+                data-ocid="chatlist.search_button"
+              >
+                {searching ? "..." : "Find"}
+              </button>
+            </div>
+
+            {searchErr && (
+              <p className="text-xs" style={{ color: "#C0304A" }}>
+                {searchErr}
+              </p>
+            )}
+
+            {foundUser && (
+              <div
+                className="flex items-center gap-3 p-3 rounded-xl"
+                style={{ background: "white", border: "1.5px solid #C4B5FD" }}
+              >
+                <div
+                  className="w-10 h-10 rounded-full flex items-center justify-center text-lg flex-shrink-0"
+                  style={{
+                    background:
+                      "linear-gradient(135deg, #E8DFFF 0%, #C4B5FD 100%)",
+                  }}
+                >
+                  {foundUser.avatarUrl ? (
+                    <img
+                      src={foundUser.avatarUrl}
+                      alt=""
+                      className="w-full h-full rounded-full object-cover"
+                    />
+                  ) : (
+                    "👤"
+                  )}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="font-bold text-sm" style={{ color: "#1E1E1E" }}>
+                    {foundUser.name}
+                  </p>
+                  <p className="text-xs" style={{ color: "#7A5AF8" }}>
+                    @{foundUser.username}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => handleStartChat(foundUser)}
+                  className="px-3 py-1.5 rounded-full text-xs font-bold text-white hover:opacity-85 transition-all"
+                  style={{ background: "#FF8C9F" }}
+                  data-ocid="chatlist.start_chat_button"
+                >
+                  Chat 💬
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+
         <div className="relative">
           <svg
             className="absolute left-3 top-1/2 -translate-y-1/2"

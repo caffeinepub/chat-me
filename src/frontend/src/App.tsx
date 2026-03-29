@@ -55,15 +55,6 @@ const serializeUser = (user: PublicUser): string => {
   );
 };
 
-const deserializeUser = (str: string): PublicUser => {
-  return JSON.parse(str, (_, value) => {
-    if (typeof value === "string" && value.startsWith("__bigint__")) {
-      return BigInt(value.slice(10));
-    }
-    return value;
-  });
-};
-
 export default function App() {
   const [view, setView] = useState<View>("splash");
   const [activeChatName, setActiveChatName] = useState<string>("Art Buddies");
@@ -75,20 +66,34 @@ export default function App() {
   );
 
   useEffect(() => {
-    const timer = setTimeout(() => {
+    const timer = setTimeout(async () => {
       const savedToken = localStorage.getItem("chatme_token");
-      const savedUser = localStorage.getItem("chatme_user");
-      if (savedToken && savedUser) {
-        try {
-          const user = deserializeUser(savedUser);
+      if (!savedToken) {
+        setView("login");
+        return;
+      }
+      // Always validate token with backend and get fresh profile data
+      try {
+        const actor = await getActor();
+        const profileResult = await actor.getMyProfile(savedToken);
+        if (profileResult && profileResult.length > 0) {
+          const freshUser = profileResult[0] as PublicUser;
           setToken(savedToken);
-          setCurrentUser(user);
-          setDpUrl(user.avatarUrl || null);
+          setCurrentUser(freshUser);
+          setDpUrl(freshUser.avatarUrl || null);
+          // Update localStorage with fresh data from backend
+          localStorage.setItem("chatme_user", serializeUser(freshUser));
           setView("home");
-        } catch {
+        } else {
+          // Token is invalid/expired - clear and redirect to login
+          localStorage.removeItem("chatme_token");
+          localStorage.removeItem("chatme_user");
           setView("login");
         }
-      } else {
+      } catch {
+        // Backend unreachable - clear any stale tokens and redirect to login
+        localStorage.removeItem("chatme_token");
+        localStorage.removeItem("chatme_user");
         setView("login");
       }
     }, 2500);

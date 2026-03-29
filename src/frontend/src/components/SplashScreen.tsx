@@ -53,7 +53,7 @@ export default function SplashScreen() {
           style={{ boxShadow: "0 8px 32px #FF8C9F55" }}
         >
           <img
-            src="/assets/uploads/3fa58a27358a3cd2a338ec3578d3e777-019d2f05-0cec-72ee-b9a7-7b6fb53d74d6-1.jpg"
+            src="/assets/uploads/92b049e7e6986de0dabd5a85eb518c30-019d32cb-469c-712f-b57e-9c8879b35386-1.jpg"
             alt="Chat Me Logo"
             style={{ width: "100%", height: "100%", objectFit: "cover" }}
           />

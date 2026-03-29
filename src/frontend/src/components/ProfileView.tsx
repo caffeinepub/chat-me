@@ -33,13 +33,30 @@ export default function ProfileView({
   );
   const [editingName, setEditingName] = useState(false);
   const [editingAbout, setEditingAbout] = useState(false);
+  const [editingUsername, setEditingUsername] = useState(false);
   const [tempName, setTempName] = useState(name);
   const [tempAbout, setTempAbout] = useState(about);
+  const [tempUsername, setTempUsername] = useState(currentUser?.username ?? "");
+  const [usernameStatus, setUsernameStatus] = useState<
+    "" | "checking" | "available" | "taken" | "invalid"
+  >("");
   const [lastSeen, setLastSeen] = useState(true);
   const [profilePhoto, setProfilePhoto] = useState(true);
   const [readReceipts, setReadReceipts] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [saveMsg, setSaveMsg] = useState<{
+    type: "ok" | "err";
+    text: string;
+  } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const showMsg = (type: "ok" | "err", text: string) => {
+    setSaveMsg({ type, text });
+    if (type === "ok") {
+      setTimeout(() => setSaveMsg(null), 3000);
+    }
+    // Error messages persist until user interacts
+  };
 
   const handleDpClick = () => fileInputRef.current?.click();
 
@@ -55,17 +72,22 @@ export default function ProfileView({
     setSaving(true);
     try {
       const actor = await getActor();
-      await actor.updateProfile(
+      const ok = await actor.updateProfile(
         token,
         tempName,
         about,
         currentUser?.avatarUrl ?? "",
       );
-      setName(tempName);
-      setEditingName(false);
-      if (currentUser) onUserUpdate({ ...currentUser, name: tempName });
+      if (ok) {
+        setName(tempName);
+        setEditingName(false);
+        if (currentUser) onUserUpdate({ ...currentUser, name: tempName });
+        showMsg("ok", "Name saved! ✓");
+      } else {
+        showMsg("err", "Session expired. Please log in again.");
+      }
     } catch {
-      // ignore
+      showMsg("err", "Could not connect. Please try again.");
     } finally {
       setSaving(false);
     }
@@ -75,21 +97,111 @@ export default function ProfileView({
     setSaving(true);
     try {
       const actor = await getActor();
-      await actor.updateProfile(
+      const ok = await actor.updateProfile(
         token,
         name,
         tempAbout,
         currentUser?.avatarUrl ?? "",
       );
-      setAbout(tempAbout);
-      setEditingAbout(false);
-      if (currentUser) onUserUpdate({ ...currentUser, about: tempAbout });
+      if (ok) {
+        setAbout(tempAbout);
+        setEditingAbout(false);
+        if (currentUser) onUserUpdate({ ...currentUser, about: tempAbout });
+        showMsg("ok", "About saved! ✓");
+      } else {
+        showMsg("err", "Session expired. Please log in again.");
+      }
     } catch {
-      // ignore
+      showMsg("err", "Could not connect. Please try again.");
     } finally {
       setSaving(false);
     }
   };
+
+  const checkUsername = async (uname: string) => {
+    setSaveMsg(null); // Clear any existing error when user starts editing
+    setTempUsername(uname);
+    if (uname.length < 3) {
+      setUsernameStatus("");
+      return;
+    }
+    if (!/^[a-zA-Z0-9_]{3,20}$/.test(uname)) {
+      setUsernameStatus("invalid");
+      return;
+    }
+    if (uname === currentUser?.username) {
+      setUsernameStatus("available");
+      return;
+    }
+    setUsernameStatus("checking");
+    try {
+      const actor = await getActor();
+      const ok = await actor.isUsernameAvailablePublic(uname);
+      setUsernameStatus(ok ? "available" : "taken");
+    } catch {
+      setUsernameStatus("");
+    }
+  };
+
+  const handleSaveUsername = async () => {
+    if (usernameStatus !== "available") return;
+    if (!token) {
+      showMsg("err", "Session expired. Please log out and log in again.");
+      return;
+    }
+    setSaving(true);
+    try {
+      const actor = await getActor();
+      const result = await actor.setUsername(token, tempUsername);
+      if ("ok" in result) {
+        // Re-fetch from backend to confirm the change actually persisted
+        try {
+          const profileResult = await actor.getMyProfile(token);
+          if (profileResult && profileResult.length > 0) {
+            const freshUser = profileResult[0] as PublicUser;
+            onUserUpdate(freshUser);
+          } else {
+            if (currentUser)
+              onUserUpdate({ ...currentUser, username: tempUsername });
+          }
+        } catch {
+          if (currentUser)
+            onUserUpdate({ ...currentUser, username: tempUsername });
+        }
+        setEditingUsername(false);
+        setUsernameStatus("");
+        showMsg("ok", "Username saved! ✓");
+      } else if ("err" in result) {
+        // Reset status so save button is disabled; user must re-type to re-check
+        setUsernameStatus("");
+        showMsg("err", `Save failed: ${result.err as string}`);
+      }
+    } catch {
+      setUsernameStatus("");
+      showMsg(
+        "err",
+        "Could not connect to server. Please check your connection and try again.",
+      );
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const usernameHint = {
+    "": "",
+    checking: "Checking...",
+    available: "✓ Available!",
+    taken: "✗ Already taken",
+    invalid: "Only letters, numbers, underscore (3-20 chars)",
+  }[usernameStatus];
+
+  const usernameHintColor = {
+    "": "#7A6E6E",
+    checking: "#7A6E6E",
+    available: "#2E8B57",
+    taken: "#C0304A",
+    invalid: "#C0304A",
+  }[usernameStatus];
 
   return (
     <div
@@ -126,6 +238,30 @@ export default function ProfileView({
           Logout 👋
         </button>
       </div>
+
+      {/* Save feedback toast */}
+      {saveMsg && (
+        <div
+          className="mx-4 mt-2 px-4 py-2 rounded-xl text-sm font-bold flex items-center justify-between gap-2 transition-all"
+          style={{
+            background: saveMsg.type === "ok" ? "#D4F5E9" : "#FFE0E6",
+            color: saveMsg.type === "ok" ? "#1A7A4A" : "#C0304A",
+            border: `1.5px solid ${saveMsg.type === "ok" ? "#A8E6CF" : "#FFB3C1"}`,
+          }}
+        >
+          <span>{saveMsg.text}</span>
+          {saveMsg.type === "err" && (
+            <button
+              type="button"
+              onClick={() => setSaveMsg(null)}
+              className="text-base font-bold opacity-60 hover:opacity-100 shrink-0"
+              data-ocid="profile.error_state"
+            >
+              ✕
+            </button>
+          )}
+        </div>
+      )}
 
       <div className="flex flex-col items-center px-5 py-8 gap-6">
         {/* Avatar */}
@@ -172,12 +308,19 @@ export default function ProfileView({
           />
         </div>
 
+        {/* Unique ID badge */}
         {currentUser && (
-          <div
-            className="px-5 py-2 rounded-full text-sm font-bold"
-            style={{ background: "#E8DFFF", color: "#7A5AF8" }}
-          >
-            Your ID: #{Number(currentUser.id)}
+          <div className="flex flex-col items-center gap-1">
+            <div
+              className="px-5 py-2 rounded-full text-sm font-bold"
+              style={{ background: "#E8DFFF", color: "#7A5AF8" }}
+            >
+              Your ID: @
+              {currentUser.username || `user${Number(currentUser.id)}`}
+            </div>
+            <p className="text-xs" style={{ color: "#7A6E6E" }}>
+              Share this ID with friends to chat 💬
+            </p>
           </div>
         )}
 
@@ -190,6 +333,109 @@ export default function ProfileView({
             boxShadow: "0 4px 20px rgba(255,140,159,0.1)",
           }}
         >
+          {/* Username field */}
+          <div>
+            <Label
+              className="text-xs font-bold uppercase tracking-wider"
+              style={{ color: "#7A5AF8" }}
+            >
+              Username (Your ID)
+            </Label>
+            {editingUsername ? (
+              <div className="flex flex-col gap-1 mt-1">
+                <div className="flex gap-2">
+                  <div className="relative flex-1">
+                    <span
+                      className="absolute left-3 top-1/2 -translate-y-1/2 text-sm font-bold"
+                      style={{ color: "#7A5AF8" }}
+                    >
+                      @
+                    </span>
+                    <input
+                      value={tempUsername}
+                      onChange={(e) =>
+                        checkUsername(
+                          e.target.value
+                            .replace(/[^a-zA-Z0-9_]/g, "")
+                            .slice(0, 20),
+                        )
+                      }
+                      className="w-full pl-7 pr-3 py-2 rounded-full text-sm outline-none"
+                      style={{
+                        background: "#F5F0FF",
+                        border: "1.5px solid #C4B5FD",
+                        color: "#1E1E1E",
+                      }}
+                      placeholder="your_username"
+                      maxLength={20}
+                      data-ocid="profile.username_input"
+                    />
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleSaveUsername}
+                    disabled={saving || usernameStatus !== "available"}
+                    className="px-4 py-2 rounded-full text-xs font-bold text-white hover:opacity-85 transition-all"
+                    style={{
+                      background:
+                        saving || usernameStatus !== "available"
+                          ? "#C4B5FD"
+                          : "#7A5AF8",
+                    }}
+                    data-ocid="profile.username_save_button"
+                  >
+                    {saving ? "✿" : "Save"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEditingUsername(false);
+                      setUsernameStatus("");
+                      setSaveMsg(null);
+                      setTempUsername(currentUser?.username ?? "");
+                    }}
+                    className="px-3 py-2 rounded-full text-xs font-bold hover:opacity-85 transition-all"
+                    style={{ background: "#F5F0FF", color: "#7A6E6E" }}
+                  >
+                    ✕
+                  </button>
+                </div>
+                {usernameHint && (
+                  <p
+                    className="text-xs px-2"
+                    style={{ color: usernameHintColor }}
+                  >
+                    {usernameHint}
+                  </p>
+                )}
+              </div>
+            ) : (
+              <div className="flex items-center justify-between mt-1">
+                <span
+                  className="text-base font-semibold"
+                  style={{ color: "#7A5AF8" }}
+                >
+                  @
+                  {currentUser?.username ||
+                    `user${Number(currentUser?.id ?? 0)}`}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setTempUsername(currentUser?.username ?? "");
+                    setSaveMsg(null);
+                    setEditingUsername(true);
+                  }}
+                  className="text-sm hover:opacity-70 transition-all"
+                  data-ocid="profile.username_edit_button"
+                >
+                  ✏️
+                </button>
+              </div>
+            )}
+          </div>
+
+          {/* Name */}
           <div>
             <Label
               className="text-xs font-bold uppercase tracking-wider"
@@ -271,6 +517,7 @@ export default function ProfileView({
             </p>
           </div>
 
+          {/* About */}
           <div>
             <Label
               className="text-xs font-bold uppercase tracking-wider"

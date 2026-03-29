@@ -1,24 +1,36 @@
 # Chat Me
 
 ## Current State
-OTP is generated in backend and returned directly to frontend (displayed on screen). No real SMS is sent.
+- Login system uses phone number + OTP (SMS via Fast2SMS)
+- Demo mode creates fake users with `demo-token-XXX` tokens that are not valid backend sessions
+- Username change fails because demo-mode tokens have no backend session → `setUsername` returns `#err("Not logged in")`
+- Users stored in `usersByPhone` HashMap keyed by phone number
+- Auto-generated username on registration (e.g. `@Arun1`)
+- Sessions are stored in transient HashMap restored via pre/postupgrade hooks
 
 ## Requested Changes (Diff)
 
 ### Add
-- HTTP outcall to Fast2SMS API to send real OTP SMS to user's phone number
-- Admin can set Fast2SMS API key via `setApiKey(token, key)` function
-- Default placeholder API key in backend
+- `registerWithPassword(username, password, name)` backend function — stores password in User, keys user by username
+- `loginWithPassword(username, password)` backend function — finds user by username, checks password, creates session
+- New LoginScreen UI: two tabs (Login / Register) with username+password fields
+- Username availability check on Register screen
+- `password` field in User struct
 
 ### Modify
-- `requestOtp` backend function: now makes HTTP outcall to Fast2SMS and returns `#ok("")` (empty string, not the OTP)
-- LoginScreen frontend: remove OTP display box, show "OTP sent to your phone" message instead
-- `handleRegister` in LoginScreen: use the already-verified OTP instead of re-requesting a new one
+- User struct: add `password` field
+- User storage: add secondary lookup by username for login (iterate to find by username)
+- ProfileView: username change still works (changes login credential but does not invalidate current session)
+- App.tsx: no demo-mode fallback that creates fake tokens; if backend unreachable on startup, go to login screen
+- LoginScreen: completely replaced — no phone/OTP flow
 
 ### Remove
-- OTP display box from frontend (the big pink box showing the code)
+- Phone OTP login flow from frontend (LoginScreen)
+- Demo mode local token generation
+- Phone number input from registration flow
 
 ## Implementation Plan
-1. Update `main.mo` to add Fast2SMS HTTP outcall using ICP's management canister HTTP feature, store API key as stable var
-2. Update `backend.d.ts` to add `setApiKey` function
-3. Update `LoginScreen.tsx` to remove OTP display and update register flow to not re-request OTP
+1. Backend: Add `password` to User struct, add `registerWithPassword` and `loginWithPassword` functions. Migrate existing users (set empty password for backward compat — they must re-register). Keep all other functions.
+2. Frontend LoginScreen: Replace 3-step OTP UI with simple Login/Register toggle. Register: pick username (with real-time availability check) + name + password + confirm password. Login: username + password.
+3. App.tsx: Remove demo-mode fallback that creates fake tokens. If backend unreachable at startup, redirect to login.
+4. ProfileView: No changes needed — username change already works correctly if session is valid.

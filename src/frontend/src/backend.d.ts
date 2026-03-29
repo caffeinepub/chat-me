@@ -11,6 +11,7 @@ export type Option<T> = Some<T> | None;
 export interface PublicUser {
     id: bigint;
     name: string;
+    username: string;
     about: string;
     avatarUrl: string;
     phone: string;
@@ -40,6 +41,10 @@ export type OtpResult =
     | { ok: string }
     | { err: string };
 
+export type SetUsernameResult =
+    | { ok: null }
+    | { err: string };
+
 export interface AdminStats {
     userCount: bigint;
     users: PublicUser[];
@@ -57,10 +62,15 @@ export interface backendInterface {
     getMyProfile(token: string): Promise<[] | [PublicUser]>;
     updateProfile(token: string, name: string, about: string, avatarUrl: string): Promise<boolean>;
     getUserById(userId: bigint): Promise<[] | [PublicUser]>;
+    getUserByUsername(username: string): Promise<[] | [PublicUser]>;
+    isUsernameAvailablePublic(username: string): Promise<boolean>;
+    setUsername(token: string, username: string): Promise<SetUsernameResult>;
     getAllUsers(): Promise<PublicUser[]>;
     sendMessage(token: string, chatId: string, text: string, imageUrl: string): Promise<[] | [bigint]>;
     getMessages(chatId: string): Promise<Message[]>;
     adminGetStats(token: string): Promise<[] | [AdminStats]>;
     setApiKey(token: string, apiKey: string): Promise<boolean>;
     isSmsConfigured(): Promise<boolean>;
+    registerWithPassword(username: string, password: string, name: string): Promise<RegisterResult>;
+    loginWithPassword(username: string, password: string): Promise<LoginResult>;
 }

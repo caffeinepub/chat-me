@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { PublicUser } from "../backend.d";
 import { getActor } from "../lib/actor";
 
@@ -6,24 +6,27 @@ interface LoginScreenProps {
   onLogin: (token: string, user: PublicUser) => void;
 }
 
-type Step = "phone" | "otp" | "register-info";
+type Tab = "login" | "register";
 
 export default function LoginScreen({ onLogin }: LoginScreenProps) {
-  const [step, setStep] = useState<Step>("phone");
+  const [tab, setTab] = useState<Tab>("login");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [successMsg, setSuccessMsg] = useState("");
 
-  const [phone, setPhone] = useState("");
-  const [otp, setOtp] = useState("");
-  const [pendingOtp, setPendingOtp] = useState(""); // demo mode: OTP shown on screen
-  const [localDemoOtp, setLocalDemoOtp] = useState(""); // local fallback OTP for offline verification
-  const [isNewUser, setIsNewUser] = useState(false);
-  const [verifiedOtp, setVerifiedOtp] = useState("");
+  // Login fields
+  const [loginUsername, setLoginUsername] = useState("");
+  const [loginPassword, setLoginPassword] = useState("");
 
+  // Register fields
+  const [regUsername, setRegUsername] = useState("");
   const [regName, setRegName] = useState("");
-  const [regPin, setRegPin] = useState("");
-  const [regPinConfirm, setRegPinConfirm] = useState("");
+  const [regPassword, setRegPassword] = useState("");
+  const [regPasswordConfirm, setRegPasswordConfirm] = useState("");
+  const [usernameAvailable, setUsernameAvailable] = useState<boolean | null>(
+    null,
+  );
+  const [usernameChecking, setUsernameChecking] = useState(false);
 
   const inputStyle: React.CSSProperties = {
     background: "rgba(255,255,255,0.7)",
@@ -39,14 +42,40 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
     boxSizing: "border-box" as const,
   };
 
-  const handleSendOtp = async () => {
-    const cleanPhone = phone.trim();
-    if (!cleanPhone) {
-      setError("Please enter your phone number 📱");
+  // Debounced username availability check
+  useEffect(() => {
+    if (!regUsername || regUsername.length < 3) {
+      setUsernameAvailable(null);
       return;
     }
-    if (cleanPhone.replace(/\D/g, "").length < 8) {
-      setError("Please enter a valid phone number 📱");
+    if (!/^[a-zA-Z0-9_]{3,20}$/.test(regUsername)) {
+      setUsernameAvailable(null);
+      return;
+    }
+    setUsernameChecking(true);
+    const timer = setTimeout(async () => {
+      try {
+        const actor = await getActor();
+        const available = await actor.isUsernameAvailablePublic(regUsername);
+        setUsernameAvailable(available);
+      } catch {
+        setUsernameAvailable(null);
+      } finally {
+        setUsernameChecking(false);
+      }
+    }, 500);
+    return () => clearTimeout(timer);
+  }, [regUsername]);
+
+  const handleLogin = async () => {
+    const uname = loginUsername.trim();
+    const pass = loginPassword.trim();
+    if (!uname) {
+      setError("Please enter your username 💕");
+      return;
+    }
+    if (!pass) {
+      setError("Please enter your password 🔑");
       return;
     }
     setLoading(true);
@@ -54,212 +83,78 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
     setSuccessMsg("");
     try {
       const actor = await getActor();
-      const result = await actor.requestOtp(cleanPhone);
+      const result = await actor.loginWithPassword(uname, pass);
       if ("ok" in result) {
-        // If result.ok is non-empty, SMS not configured -- show demo OTP
-        setPendingOtp(result.ok);
-        setLocalDemoOtp(""); // backend handled it
-        const registered = await actor.isPhoneRegistered(cleanPhone);
-        setIsNewUser(!registered);
-        setStep("otp");
-        if (result.ok) {
-          setSuccessMsg("OTP ready — enter the code shown below 📲");
-        } else {
-          setSuccessMsg(`OTP sent to ${cleanPhone} 📱`);
-        }
+        onLogin(result.ok.token, result.ok.user);
       } else {
-        // Backend returned an error variant — show the actual message
-        setError(result.err || "Could not send OTP. Please try again 💔");
+        setError(`${result.err} ❌`);
       }
     } catch {
-      // Canister unreachable — fallback to pure local demo mode, assume new user
-      const localOtp = Math.floor(100000 + Math.random() * 900000).toString();
-      setPendingOtp(localOtp);
-      setLocalDemoOtp(localOtp);
-      setIsNewUser(true); // default to registration flow
-      setStep("otp");
-      setSuccessMsg("Could not reach server — use the code shown below 📲");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleVerifyOtp = async () => {
-    const cleanOtp = otp.trim();
-    if (!cleanOtp || cleanOtp.length !== 6) {
-      setError("Please enter the 6-digit OTP 🔢");
-      return;
-    }
-    setLoading(true);
-    setError("");
-    try {
-      // If we have a local demo OTP, verify it client-side
-      if (localDemoOtp) {
-        if (cleanOtp !== localDemoOtp) {
-          setError("Wrong OTP! Please check and try again ❌");
-          setLoading(false);
-          return;
-        }
-        setVerifiedOtp(cleanOtp);
-        // Always proceed to register-info in local demo mode
-        setStep("register-info");
-        setLoading(false);
-        return;
-      }
-
-      const actor = await getActor();
-      if (isNewUser) {
-        const valid = await actor.verifyOtp(phone.trim(), cleanOtp);
-        if (valid) {
-          setVerifiedOtp(cleanOtp);
-          setStep("register-info");
-          setError("");
-        } else {
-          setError("Wrong OTP! Please check and try again ❌");
-        }
-      } else {
-        const result = await actor.loginWithOtp(phone.trim(), cleanOtp);
-        if ("ok" in result) {
-          onLogin(result.ok.token, result.ok.user);
-        } else {
-          setError(`${result.err} ❌`);
-        }
-      }
-    } catch {
-      // If backend unreachable but we have a localDemoOtp and user entered correct code — let them in
-      if (localDemoOtp && otp.trim() === localDemoOtp) {
-        const demoUser: PublicUser = {
-          id: BigInt(1),
-          name: "Demo User",
-          about: "Demo account 🌸",
-          avatarUrl: "",
-          phone: phone.trim(),
-          joinedAt: BigInt(Date.now()),
-          isAdmin: false,
-        };
-        onLogin(`demo-token-${phone.trim()}`, demoUser);
-      } else {
-        setError(
-          "Verification failed. Please check your connection and try again 📡",
-        );
-      }
+      setError("Could not reach server. Please try again 📡");
     } finally {
       setLoading(false);
     }
   };
 
   const handleRegister = async () => {
-    if (!regName.trim()) {
-      setError("Please enter your name ✨");
+    const uname = regUsername.trim();
+    const name = regName.trim();
+    const pass = regPassword.trim();
+    const passConfirm = regPasswordConfirm.trim();
+
+    if (!uname || uname.length < 3) {
+      setError("Username must be at least 3 characters ✨");
       return;
     }
-    if (regPin.length < 4) {
-      setError("PIN must be at least 4 digits 🔑");
+    if (!/^[a-zA-Z0-9_]{3,20}$/.test(uname)) {
+      setError("Username: letters, numbers, underscore only (3-20 chars) 💕");
       return;
     }
-    if (regPin !== regPinConfirm) {
-      setError("PINs do not match 💕");
+    if (usernameAvailable === false) {
+      setError("That username is already taken 💔");
       return;
     }
+    if (!name) {
+      setError("Please enter your display name 🌸");
+      return;
+    }
+    if (pass.length < 4) {
+      setError("Password must be at least 4 characters 🔑");
+      return;
+    }
+    if (pass !== passConfirm) {
+      setError("Passwords do not match 💕");
+      return;
+    }
+
     setLoading(true);
     setError("");
+    setSuccessMsg("");
     try {
       const actor = await getActor();
-
-      // In local demo mode — try backend first, but if it fails, create a local mock user
-      if (localDemoOtp) {
-        let loggedIn = false;
-        try {
-          let otpForReg = verifiedOtp;
-          try {
-            const otpResult = await actor.requestOtp(phone.trim());
-            if ("ok" in otpResult) {
-              otpForReg = otpResult.ok || verifiedOtp;
-            }
-          } catch {
-            // ignore
-          }
-          const result = await actor.registerWithOtp(
-            phone.trim(),
-            otpForReg,
-            regName.trim(),
-            regPin.trim(),
-          );
-          if ("ok" in result) {
-            const token = result.ok.token;
-            const profileResult = await actor.getMyProfile(token);
-            if (profileResult && profileResult.length > 0) {
-              onLogin(token, profileResult[0] as PublicUser);
-              loggedIn = true;
-            }
-          }
-        } catch {
-          // backend unreachable — fall through to local demo login
-        }
-        if (!loggedIn) {
-          // Create a local demo user so the app can be explored without backend
-          const demoUser: PublicUser = {
-            id: BigInt(1),
-            name: regName.trim() || "Demo User",
-            about: "Demo account 🌸",
-            avatarUrl: "",
-            phone: phone.trim(),
-            joinedAt: BigInt(Date.now()),
-            isAdmin: false,
-          };
-          onLogin(`demo-token-${phone.trim()}`, demoUser);
-          loggedIn = true;
-        }
-        return;
-      }
-
-      // Normal flow
-      const otpResult = await actor.requestOtp(phone.trim());
-      if (!("ok" in otpResult)) {
-        setError(otpResult.err || "Could not generate OTP. Please try again.");
-        setLoading(false);
-        return;
-      }
-      const freshOtp = otpResult.ok || verifiedOtp;
-      const result = await actor.registerWithOtp(
-        phone.trim(),
-        freshOtp,
-        regName.trim(),
-        regPin.trim(),
-      );
+      const result = await actor.registerWithPassword(uname, pass, name);
       if ("ok" in result) {
-        const token = result.ok.token;
-        const profileResult = await actor.getMyProfile(token);
+        const profileResult = await actor.getMyProfile(result.ok.token);
         if (profileResult && profileResult.length > 0) {
-          onLogin(token, profileResult[0] as PublicUser);
+          onLogin(result.ok.token, profileResult[0] as PublicUser);
         } else {
-          setStep("phone");
           setSuccessMsg("Account created! Please login 🌸");
+          setTab("login");
         }
       } else {
         setError(`${result.err} ❌`);
       }
     } catch {
-      setError(
-        "Registration failed. Please check your connection and try again 📡",
-      );
+      setError("Could not reach server. Please try again 📡");
     } finally {
       setLoading(false);
     }
   };
 
-  const resetFlow = () => {
-    setStep("phone");
-    setPhone("");
-    setOtp("");
-    setPendingOtp("");
-    setLocalDemoOtp("");
-    setVerifiedOtp("");
+  const switchTab = (t: Tab) => {
+    setTab(t);
     setError("");
     setSuccessMsg("");
-    setRegName("");
-    setRegPin("");
-    setRegPinConfirm("");
   };
 
   return (
@@ -271,6 +166,7 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
         fontFamily: "'Quicksand', sans-serif",
       }}
     >
+      {/* Background emojis */}
       <div
         className="fixed inset-0 pointer-events-none overflow-hidden"
         style={{ zIndex: 0 }}
@@ -300,7 +196,7 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
             style={{ boxShadow: "0 0 30px #FF8C9F66" }}
           >
             <img
-              src="/assets/uploads/3fa58a27358a3cd2a338ec3578d3e777-019d2f05-0cec-72ee-b9a7-7b6fb53d74d6-1.jpg"
+              src="/assets/uploads/92b049e7e6986de0dabd5a85eb518c30-019d32cb-469c-712f-b57e-9c8879b35386-1.jpg"
               alt="Chat Me Logo"
               style={{ width: "100%", height: "100%", objectFit: "cover" }}
             />
@@ -325,36 +221,35 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
             boxShadow: "0 8px 40px rgba(255,140,159,0.15)",
           }}
         >
-          {/* Step indicator */}
-          <div className="flex items-center justify-center gap-2">
-            {(["phone", "otp", "register-info"] as Step[]).map((s, i) => (
-              <div key={s} className="flex items-center gap-2">
-                <div
-                  className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold"
-                  style={{
-                    background:
-                      step === s
-                        ? "#FF8C9F"
-                        : i < ["phone", "otp", "register-info"].indexOf(step)
-                          ? "#FFB6C8"
-                          : "#FFE4EC",
-                    color: step === s ? "#fff" : "#FF8C9F",
-                  }}
-                >
-                  {i + 1}
-                </div>
-                {i < 2 && (
-                  <div
-                    style={{
-                      width: 20,
-                      height: 2,
-                      background: "#FFD1DC",
-                      borderRadius: 2,
-                    }}
-                  />
-                )}
-              </div>
-            ))}
+          {/* Tabs */}
+          <div
+            className="flex rounded-2xl overflow-hidden"
+            style={{ border: "1.5px solid #FFD1DC" }}
+          >
+            <button
+              type="button"
+              onClick={() => switchTab("login")}
+              className="flex-1 py-2.5 text-sm font-bold transition-all"
+              style={{
+                background: tab === "login" ? "#FF8C9F" : "transparent",
+                color: tab === "login" ? "#fff" : "#FF8C9F",
+              }}
+              data-ocid="login.tab"
+            >
+              🔑 Login
+            </button>
+            <button
+              type="button"
+              onClick={() => switchTab("register")}
+              className="flex-1 py-2.5 text-sm font-bold transition-all"
+              style={{
+                background: tab === "register" ? "#FF8C9F" : "transparent",
+                color: tab === "register" ? "#fff" : "#FF8C9F",
+              }}
+              data-ocid="login.tab"
+            >
+              ✨ Register
+            </button>
           </div>
 
           {error && (
@@ -376,152 +271,146 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
             </div>
           )}
 
-          {/* STEP 1: Enter Phone */}
-          {step === "phone" && (
+          {/* LOGIN TAB */}
+          {tab === "login" && (
             <div className="flex flex-col gap-4">
               <div className="text-center">
                 <p className="font-bold text-base" style={{ color: "#FF8C9F" }}>
-                  📱 Enter your phone number
+                  Welcome back! 💕
                 </p>
                 <p className="text-xs mt-1" style={{ color: "#7A6E6E" }}>
-                  We'll send you a verification code via SMS
+                  Enter your ID and password
                 </p>
               </div>
-              <input
-                type="tel"
-                value={phone}
-                onChange={(e) => setPhone(e.target.value)}
-                placeholder="+91 98765 43210"
-                style={inputStyle}
-                onKeyDown={(e) => e.key === "Enter" && handleSendOtp()}
-                data-ocid="login.input"
-              />
-              <button
-                type="button"
-                onClick={handleSendOtp}
-                disabled={loading}
-                className="w-full py-3 rounded-full text-white font-bold text-sm transition-all hover:opacity-85"
-                style={{ background: loading ? "#FFB6C8" : "#FF8C9F" }}
-                data-ocid="login.primary_button"
-              >
-                {loading ? "✿ Sending OTP..." : "Send OTP via SMS 📨"}
-              </button>
-            </div>
-          )}
-
-          {/* STEP 2: Enter OTP */}
-          {step === "otp" && (
-            <div className="flex flex-col gap-4">
-              <div className="text-center">
-                <p className="font-bold text-base" style={{ color: "#FF8C9F" }}>
-                  🔢 Enter OTP
-                </p>
-                <p className="text-xs mt-1" style={{ color: "#7A6E6E" }}>
-                  Sent to {phone}
-                </p>
-              </div>
-
-              {/* Show OTP when SMS could not be delivered */}
-              {pendingOtp && (
-                <div
-                  className="rounded-2xl p-4 text-center"
-                  style={{
-                    background: "linear-gradient(135deg, #FFF9E6, #FFF3D0)",
-                    border: "1.5px dashed #FFB347",
-                  }}
-                >
-                  <p
-                    className="text-xs font-semibold"
-                    style={{ color: "#B8860B" }}
-                  >
-                    ⚠️ SMS could not be delivered
-                  </p>
-                  <p className="text-xs mt-1" style={{ color: "#7A6E6E" }}>
-                    Your OTP code is:
-                  </p>
-                  <p
-                    className="text-3xl font-bold tracking-[0.3em] mt-1"
-                    style={{ color: "#FF8C9F", fontFamily: "monospace" }}
-                  >
-                    {pendingOtp}
-                  </p>
-                </div>
-              )}
-
-              <div className="flex flex-col gap-1">
-                <input
-                  type="text"
-                  value={otp}
-                  onChange={(e) =>
-                    setOtp(e.target.value.replace(/\D/g, "").slice(0, 6))
-                  }
-                  placeholder="Enter 6-digit OTP"
-                  style={{
-                    ...inputStyle,
-                    textAlign: "center",
-                    letterSpacing: "0.3em",
-                    fontSize: "20px",
-                    fontWeight: "bold",
-                  }}
-                  maxLength={6}
-                  onKeyDown={(e) => e.key === "Enter" && handleVerifyOtp()}
-                  data-ocid="login.input"
-                />
-              </div>
-
-              <button
-                type="button"
-                onClick={handleVerifyOtp}
-                disabled={loading || otp.length !== 6}
-                className="w-full py-3 rounded-full text-white font-bold text-sm transition-all hover:opacity-85"
-                style={{
-                  background:
-                    loading || otp.length !== 6 ? "#FFB6C8" : "#FF8C9F",
-                }}
-                data-ocid="login.primary_button"
-              >
-                {loading
-                  ? "✿ Verifying..."
-                  : isNewUser
-                    ? "Verify & Continue 🌸"
-                    : "Verify & Login 💕"}
-              </button>
-
-              <button
-                type="button"
-                onClick={resetFlow}
-                className="text-xs text-center underline"
-                style={{
-                  color: "#FF8C9F",
-                  background: "none",
-                  border: "none",
-                  cursor: "pointer",
-                }}
-                data-ocid="login.cancel_button"
-              >
-                ← Change phone number
-              </button>
-            </div>
-          )}
-
-          {/* STEP 3: Register Info */}
-          {step === "register-info" && (
-            <div className="flex flex-col gap-4">
-              <div className="text-center">
-                <p className="font-bold text-base" style={{ color: "#FF8C9F" }}>
-                  ✨ Create your account
-                </p>
-                <p className="text-xs mt-1" style={{ color: "#7A6E6E" }}>
-                  Just a few more details 🌸
-                </p>
-              </div>
-
               <div className="flex flex-col gap-1">
                 <span
                   className="text-xs font-bold px-2"
                   style={{ color: "#FF8C9F" }}
                 >
-                  ✨ Your Name
+                  👤 Your Username
+                </span>
+                <input
+                  type="text"
+                  value={loginUsername}
+                  onChange={(e) => setLoginUsername(e.target.value)}
+                  placeholder="your_username"
+                  style={inputStyle}
+                  onKeyDown={(e) => e.key === "Enter" && handleLogin()}
+                  data-ocid="login.input"
+                />
+              </div>
+              <div className="flex flex-col gap-1">
+                <span
+                  className="text-xs font-bold px-2"
+                  style={{ color: "#FF8C9F" }}
+                >
+                  🔑 Password
+                </span>
+                <input
+                  type="password"
+                  value={loginPassword}
+                  onChange={(e) => setLoginPassword(e.target.value)}
+                  placeholder="Your password"
+                  style={inputStyle}
+                  onKeyDown={(e) => e.key === "Enter" && handleLogin()}
+                  data-ocid="login.input"
+                />
+              </div>
+              <button
+                type="button"
+                onClick={handleLogin}
+                disabled={loading}
+                className="w-full py-3 rounded-full text-white font-bold text-sm transition-all hover:opacity-85"
+                style={{ background: loading ? "#FFB6C8" : "#FF8C9F" }}
+                data-ocid="login.primary_button"
+              >
+                {loading ? "✿ Logging in..." : "Login 💕"}
+              </button>
+              <p className="text-xs text-center" style={{ color: "#7A6E6E" }}>
+                New here?{" "}
+                <button
+                  type="button"
+                  onClick={() => switchTab("register")}
+                  className="underline font-bold"
+                  style={{
+                    color: "#FF8C9F",
+                    background: "none",
+                    border: "none",
+                    cursor: "pointer",
+                  }}
+                >
+                  Create an account ✨
+                </button>
+              </p>
+            </div>
+          )}
+
+          {/* REGISTER TAB */}
+          {tab === "register" && (
+            <div className="flex flex-col gap-4">
+              <div className="text-center">
+                <p className="font-bold text-base" style={{ color: "#FF8C9F" }}>
+                  Create your account ✨
+                </p>
+                <p className="text-xs mt-1" style={{ color: "#7A6E6E" }}>
+                  Choose your unique ID 🌸
+                </p>
+              </div>
+
+              {/* Username */}
+              <div className="flex flex-col gap-1">
+                <span
+                  className="text-xs font-bold px-2"
+                  style={{ color: "#FF8C9F" }}
+                >
+                  👤 Choose your Username (your unique ID)
+                </span>
+                <div className="relative">
+                  <input
+                    type="text"
+                    value={regUsername}
+                    onChange={(e) => {
+                      setRegUsername(e.target.value);
+                      setUsernameAvailable(null);
+                    }}
+                    placeholder="e.g. arun_cool"
+                    style={{ ...inputStyle, paddingRight: "110px" }}
+                    maxLength={20}
+                    data-ocid="login.input"
+                  />
+                  <span
+                    className="absolute right-4 top-1/2 -translate-y-1/2 text-xs font-bold"
+                    style={{
+                      color: usernameChecking
+                        ? "#aaa"
+                        : usernameAvailable === true
+                          ? "#2E8B57"
+                          : usernameAvailable === false
+                            ? "#C0304A"
+                            : "transparent",
+                    }}
+                  >
+                    {usernameChecking
+                      ? "Checking..."
+                      : usernameAvailable === true
+                        ? "✓ Available!"
+                        : usernameAvailable === false
+                          ? "✗ Taken"
+                          : ""}
+                  </span>
+                </div>
+                <span className="text-xs px-2" style={{ color: "#aaa" }}>
+                  3-20 chars, letters/numbers/underscore
+                </span>
+              </div>
+
+              {/* Display name */}
+              <div className="flex flex-col gap-1">
+                <span
+                  className="text-xs font-bold px-2"
+                  style={{ color: "#FF8C9F" }}
+                >
+                  ✨ Display Name
                 </span>
                 <input
                   type="text"
@@ -533,46 +422,38 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
                 />
               </div>
 
+              {/* Password */}
               <div className="flex flex-col gap-1">
                 <span
                   className="text-xs font-bold px-2"
                   style={{ color: "#FF8C9F" }}
                 >
-                  🔑 Create PIN (4-6 digits)
+                  🔑 Password
                 </span>
                 <input
                   type="password"
-                  inputMode="numeric"
-                  value={regPin}
-                  onChange={(e) =>
-                    setRegPin(e.target.value.replace(/\D/g, "").slice(0, 6))
-                  }
-                  placeholder="e.g. 1234"
+                  value={regPassword}
+                  onChange={(e) => setRegPassword(e.target.value)}
+                  placeholder="Min 4 characters"
                   style={inputStyle}
-                  maxLength={6}
                   data-ocid="login.input"
                 />
               </div>
 
+              {/* Confirm password */}
               <div className="flex flex-col gap-1">
                 <span
                   className="text-xs font-bold px-2"
                   style={{ color: "#FF8C9F" }}
                 >
-                  🔑 Confirm PIN
+                  🔑 Confirm Password
                 </span>
                 <input
                   type="password"
-                  inputMode="numeric"
-                  value={regPinConfirm}
-                  onChange={(e) =>
-                    setRegPinConfirm(
-                      e.target.value.replace(/\D/g, "").slice(0, 6),
-                    )
-                  }
-                  placeholder="Re-enter PIN"
+                  value={regPasswordConfirm}
+                  onChange={(e) => setRegPasswordConfirm(e.target.value)}
+                  placeholder="Re-enter password"
                   style={inputStyle}
-                  maxLength={6}
                   onKeyDown={(e) => e.key === "Enter" && handleRegister()}
                   data-ocid="login.input"
                 />
@@ -589,26 +470,28 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
                 {loading ? "✿ Creating account..." : "Join Chat Me 🎀"}
               </button>
 
-              <button
-                type="button"
-                onClick={resetFlow}
-                className="text-xs text-center underline"
-                style={{
-                  color: "#FF8C9F",
-                  background: "none",
-                  border: "none",
-                  cursor: "pointer",
-                }}
-                data-ocid="login.cancel_button"
-              >
-                ← Start over
-              </button>
+              <p className="text-xs text-center" style={{ color: "#7A6E6E" }}>
+                Already have an account?{" "}
+                <button
+                  type="button"
+                  onClick={() => switchTab("login")}
+                  className="underline font-bold"
+                  style={{
+                    color: "#FF8C9F",
+                    background: "none",
+                    border: "none",
+                    cursor: "pointer",
+                  }}
+                >
+                  Login 💕
+                </button>
+              </p>
             </div>
           )}
         </div>
 
         <p className="text-xs text-center" style={{ color: "#7A6E6E" }}>
-          Your phone number is your unique ID 💕
+          Your username is your unique ID 💕
         </p>
       </div>
     </div>
