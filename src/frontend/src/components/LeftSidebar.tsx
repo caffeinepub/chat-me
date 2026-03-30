@@ -1,16 +1,62 @@
+import { useEffect, useState } from "react";
+import type { ConversationInfo } from "../backend.d";
+import { getActor, withRetry } from "../lib/actor";
 import { KawaiiCamera, KawaiiHeart } from "./KawaiiDoodles";
-
-const friends = [
-  { name: "Ben", grad: "linear-gradient(135deg, #FFD1A1 0%, #FFA0A0 100%)" },
-  { name: "Sara", grad: "linear-gradient(135deg, #A0D4FF 0%, #C1A0FF 100%)" },
-  { name: "Mia", grad: "linear-gradient(135deg, #A0FFCA 0%, #A0D4FF 100%)" },
-];
 
 interface LeftSidebarProps {
   onOpenChat?: (chatName: string) => void;
+  token?: string;
 }
 
-export default function LeftSidebar({ onOpenChat }: LeftSidebarProps) {
+export default function LeftSidebar({ onOpenChat, token }: LeftSidebarProps) {
+  const [conversations, setConversations] = useState<ConversationInfo[]>([]);
+  const [onlineUsers, setOnlineUsers] = useState<Set<string>>(new Set());
+
+  useEffect(() => {
+    if (!token) return;
+    const load = async () => {
+      try {
+        const convs = await withRetry((actor) =>
+          actor.getUserConversations(token),
+        );
+        const convList = convs as ConversationInfo[];
+        setConversations(convList);
+        try {
+          const actor = await getActor();
+          const checks = await Promise.all(
+            convList.map((c) =>
+              (actor as any)
+                .isUserOnline(c.otherUserId)
+                .then((v: boolean) => ({
+                  id: c.otherUserId.toString(),
+                  online: v,
+                }))
+                .catch(() => ({ id: c.otherUserId.toString(), online: false })),
+            ),
+          );
+          setOnlineUsers(
+            new Set<string>(
+              checks
+                .filter((x: { id: string; online: boolean }) => x.online)
+                .map((x: { id: string; online: boolean }) => x.id),
+            ),
+          );
+        } catch {
+          // ignore
+        }
+      } catch {
+        // ignore
+      }
+    };
+    load();
+    const id = setInterval(load, 10000);
+    return () => clearInterval(id);
+  }, [token]);
+
+  const onlineFriends = conversations.filter((c) =>
+    onlineUsers.has(c.otherUserId.toString()),
+  );
+
   return (
     <aside
       className="flex flex-col gap-5 p-4 rounded-2xl shadow-card h-full"
@@ -128,7 +174,7 @@ export default function LeftSidebar({ onOpenChat }: LeftSidebarProps) {
         </div>
       </div>
 
-      {/* Friends */}
+      {/* Online Friends — real users only */}
       <div>
         <p
           className="text-xs font-bold uppercase tracking-wider mb-3"
@@ -137,32 +183,57 @@ export default function LeftSidebar({ onOpenChat }: LeftSidebarProps) {
           Online Friends
         </p>
         <div className="flex flex-col gap-2.5">
-          {friends.map((f) => (
-            <button
-              key={f.name}
-              type="button"
-              onClick={() => onOpenChat?.(`DM: ${f.name}`)}
-              className="flex items-center gap-2.5 px-2 hover:opacity-80 transition-all text-left"
-              data-ocid={`sidebar.friend_${f.name.toLowerCase()}.button`}
-            >
-              <div className="relative">
-                <div
-                  className="w-8 h-8 rounded-full"
-                  style={{ background: f.grad }}
-                />
-                <div
-                  className="absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full border-2 border-white"
-                  style={{ background: "#4CAF50" }}
-                />
-              </div>
-              <span
-                className="text-sm font-semibold"
-                style={{ color: "#5A4E4E" }}
-              >
-                {f.name}
-              </span>
-            </button>
-          ))}
+          {onlineFriends.length === 0 ? (
+            <p className="text-xs" style={{ color: "#BBA0A8" }}>
+              No friends online yet 🌸
+            </p>
+          ) : (
+            onlineFriends.map((f) => {
+              const initials = f.otherUserName
+                ? f.otherUserName.slice(0, 2).toUpperCase()
+                : "??";
+              return (
+                <button
+                  key={f.chatId}
+                  type="button"
+                  onClick={() => onOpenChat?.(f.chatId)}
+                  className="flex items-center gap-2.5 px-2 hover:opacity-80 transition-all text-left"
+                  data-ocid="sidebar.friend.button"
+                >
+                  <div className="relative">
+                    <div
+                      className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold text-white overflow-hidden"
+                      style={{
+                        background: f.otherUserAvatar
+                          ? undefined
+                          : "linear-gradient(135deg, #FFB6C1 0%, #C1A0FF 100%)",
+                      }}
+                    >
+                      {f.otherUserAvatar ? (
+                        <img
+                          src={f.otherUserAvatar}
+                          alt={initials}
+                          className="w-full h-full object-cover"
+                        />
+                      ) : (
+                        initials
+                      )}
+                    </div>
+                    <div
+                      className="absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full border-2 border-white"
+                      style={{ background: "#4CAF50" }}
+                    />
+                  </div>
+                  <span
+                    className="text-sm font-semibold truncate"
+                    style={{ color: "#5A4E4E" }}
+                  >
+                    {f.otherUserName}
+                  </span>
+                </button>
+              );
+            })
+          )}
         </div>
       </div>
 

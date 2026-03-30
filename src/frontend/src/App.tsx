@@ -86,7 +86,6 @@ export default function App() {
         setView("login");
         return;
       }
-      // Always validate token with backend and get fresh profile data
       try {
         const actor = await getActor();
         const profileResult = await actor.getMyProfile(savedToken);
@@ -95,17 +94,14 @@ export default function App() {
           setToken(savedToken);
           setCurrentUser(freshUser);
           setDpUrl(freshUser.avatarUrl || null);
-          // Update localStorage with fresh data from backend
           localStorage.setItem("chatme_user", serializeUser(freshUser));
           setView("home");
         } else {
-          // Token is invalid/expired - clear and redirect to login
           localStorage.removeItem("chatme_token");
           localStorage.removeItem("chatme_user");
           setView("login");
         }
       } catch {
-        // Backend temporarily unreachable -- restore from localStorage cache
         const savedUser = localStorage.getItem("chatme_user");
         if (savedUser) {
           const user = deserializeUser(savedUser);
@@ -117,7 +113,6 @@ export default function App() {
             return;
           }
         }
-        // No cached user -- go to login (don't clear token so user can retry)
         setView("login");
       }
     }, 2500);
@@ -196,9 +191,18 @@ export default function App() {
           style={{ minWidth: "1200px" }}
         >
           <LeftSidebar
-            onOpenChat={(name) =>
-              openChat(`group_${name.toLowerCase().replace(/ /g, "_")}`, name)
-            }
+            token={token ?? ""}
+            onOpenChat={(chatId) => {
+              // For group chats (not dm_) prefix with group_
+              if (chatId.startsWith("dm_")) {
+                openChat(chatId, chatId);
+              } else {
+                openChat(
+                  `group_${chatId.toLowerCase().replace(/ /g, "_")}`,
+                  chatId,
+                );
+              }
+            }}
           />
           <CentralDashboard
             onJoinChat={(name) =>
@@ -236,6 +240,7 @@ export default function App() {
         currentUser={currentUser}
         onOpenChat={openChat}
         onNav={setView}
+        activeChatId={activeChatId || null}
       />
     );
   }

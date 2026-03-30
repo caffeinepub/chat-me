@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { View } from "../App";
 import type { ConversationInfo, PublicUser } from "../backend.d";
 import { getActor, withRetry } from "../lib/actor";
@@ -9,6 +9,7 @@ interface ChatListProps {
   currentUser: PublicUser | null;
   onOpenChat: (chatId: string, displayName: string) => void;
   onNav: (v: View) => void;
+  activeChatId?: string | null;
 }
 
 export default function ChatList({
@@ -16,6 +17,7 @@ export default function ChatList({
   currentUser,
   onOpenChat,
   onNav,
+  activeChatId,
 }: ChatListProps) {
   const [search, setSearch] = useState("");
   const [realConversations, setRealConversations] = useState<
@@ -23,6 +25,8 @@ export default function ChatList({
   >([]);
   const [pendingChats, setPendingChats] = useState<ConversationInfo[]>([]);
   const [onlineUsers, setOnlineUsers] = useState<Set<string>>(new Set());
+  const [unreadCounts, setUnreadCounts] = useState<Record<string, number>>({});
+  const prevTimestamps = useRef<Record<string, bigint>>({});
   const [usernameSearch, setUsernameSearch] = useState("");
   const [foundUser, setFoundUser] = useState<PublicUser | null>(null);
   const [searching, setSearching] = useState(false);
@@ -36,12 +40,34 @@ export default function ChatList({
         const convs = await withRetry((actor) =>
           actor.getUserConversations(token),
         );
-        setRealConversations(convs as ConversationInfo[]);
-        // Check online status for each conversation's other user
+        const convList = convs as ConversationInfo[];
+        setRealConversations(convList);
+
+        // Update unread counts
+        setUnreadCounts((prev) => {
+          const updated = { ...prev };
+          for (const c of convList) {
+            const chatId = c.chatId;
+            const prevTs = prevTimestamps.current[chatId];
+            const newTs = c.lastTimestamp;
+            // If timestamp changed and this is not the active chat
+            if (
+              prevTs !== undefined &&
+              newTs > prevTs &&
+              chatId !== activeChatId
+            ) {
+              updated[chatId] = (updated[chatId] ?? 0) + 1;
+            }
+            prevTimestamps.current[chatId] = newTs;
+          }
+          return updated;
+        });
+
+        // Check online status
         try {
           const actor = await getActor();
-          const onlineChecks = await Promise.all(
-            (convs as ConversationInfo[]).map((c) =>
+          const checks = await Promise.all(
+            convList.map((c) =>
               (actor as any)
                 .isUserOnline(c.otherUserId)
                 .then((v: boolean) => ({
@@ -51,12 +77,13 @@ export default function ChatList({
                 .catch(() => ({ id: c.otherUserId.toString(), online: false })),
             ),
           );
-          const onlineSet = new Set<string>(
-            onlineChecks
-              .filter((x: { id: string; online: boolean }) => x.online)
-              .map((x: { id: string; online: boolean }) => x.id),
+          setOnlineUsers(
+            new Set<string>(
+              checks
+                .filter((x: { id: string; online: boolean }) => x.online)
+                .map((x: { id: string; online: boolean }) => x.id),
+            ),
           );
-          setOnlineUsers(onlineSet);
         } catch {
           // ignore
         }
@@ -67,20 +94,34 @@ export default function ChatList({
     load();
     const id = setInterval(load, 2000);
     return () => clearInterval(id);
-  }, [token]);
+  }, [token, activeChatId]);
 
   const mergedConversations = [
     ...realConversations,
     ...pendingChats.filter(
       (p) => !realConversations.some((r) => r.chatId === p.chatId),
     ),
-  ];
+  ].sort((a, b) => {
+    const aTs = Number(a.lastTimestamp);
+    const bTs = Number(b.lastTimestamp);
+    return bTs - aTs;
+  });
 
   const filteredConvs = mergedConversations.filter(
     (c) =>
       c.otherUserName.toLowerCase().includes(search.toLowerCase()) ||
       c.otherUserUsername.toLowerCase().includes(search.toLowerCase()),
   );
+
+  const handleOpenChat = (chatId: string, displayName: string) => {
+    // Clear unread for this chat
+    setUnreadCounts((prev) => {
+      const updated = { ...prev };
+      delete updated[chatId];
+      return updated;
+    });
+    onOpenChat(chatId, displayName);
+  };
 
   const handleFindUser = async () => {
     const uname = usernameSearch.replace("@", "").trim();
@@ -109,7 +150,6 @@ export default function ChatList({
     const chatId = `dm_${Math.min(myId, theirId)}_${Math.max(myId, theirId)}`;
     const displayName = user.name;
 
-    // Add to pending chats immediately so it appears in list
     const alreadyExists = realConversations.some((c) => c.chatId === chatId);
     if (!alreadyExists) {
       const pending: ConversationInfo = {
@@ -127,7 +167,7 @@ export default function ChatList({
       });
     }
 
-    onOpenChat(chatId, displayName);
+    handleOpenChat(chatId, displayName);
     setShowFindPanel(false);
   };
 
@@ -312,11 +352,12 @@ export default function ChatList({
             ? ts.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
             : "";
           const isOnline = onlineUsers.has(conv.otherUserId.toString());
+          const unread = unreadCounts[conv.chatId] ?? 0;
           return (
             <button
               key={conv.chatId}
               type="button"
-              onClick={() => onOpenChat(conv.chatId, conv.otherUserName)}
+              onClick={() => handleOpenChat(conv.chatId, conv.otherUserName)}
               data-ocid={`chatlist.item.${i + 1}`}
               className="flex items-center gap-3 px-4 py-3 rounded-2xl transition-all hover:opacity-85 text-left"
               style={{ background: "#FFFAF5", border: "1.5px solid #FFD1DC" }}
@@ -348,16 +389,33 @@ export default function ChatList({
                 )}
               </div>
               <div className="flex-1 min-w-0">
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between gap-1">
                   <span
                     className="font-bold text-sm"
                     style={{ color: "#1E1E1E" }}
                   >
                     {conv.otherUserName}
                   </span>
-                  <span className="text-xs" style={{ color: "#aaa" }}>
-                    {timeStr}
-                  </span>
+                  <div className="flex items-center gap-1.5 flex-shrink-0">
+                    <span className="text-xs" style={{ color: "#aaa" }}>
+                      {timeStr}
+                    </span>
+                    {unread > 0 && (
+                      <span
+                        className="inline-flex items-center justify-center rounded-full text-white font-bold"
+                        style={{
+                          background: "#FF8C9F",
+                          fontSize: "10px",
+                          minWidth: "18px",
+                          height: "18px",
+                          padding: "0 4px",
+                        }}
+                        data-ocid={`chatlist.item.${i + 1}.toast`}
+                      >
+                        {unread > 99 ? "99+" : unread}
+                      </span>
+                    )}
+                  </div>
                 </div>
                 <p
                   className="text-xs truncate mt-0.5"
