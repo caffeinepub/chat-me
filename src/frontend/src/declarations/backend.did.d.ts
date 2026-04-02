@@ -30,6 +30,7 @@ export type LoginResult = { ok: { token: string; user: PublicUser } } | { err: s
 export type RegisterResult = { ok: { userId: bigint; token: string } } | { err: string };
 export type OtpResult = { ok: string } | { err: string };
 export type SetUsernameResult = { ok: null } | { err: string };
+export type AddFriendResult = { ok: null } | { err: string };
 
 export interface AdminStats {
   userCount: bigint;
@@ -61,6 +62,12 @@ export interface _SERVICE {
   loginWithOtp: ActorMethod<[string, string], LoginResult>;
   register: ActorMethod<[string, string, string], RegisterResult>;
   login: ActorMethod<[string, string], LoginResult>;
+  heartbeat: ActorMethod<[string], boolean>;
+  isUserOnline: ActorMethod<[bigint], boolean>;
+  getUserConversations: ActorMethod<[string], Array<any>>;
+  addFriend: ActorMethod<[string, bigint], AddFriendResult>;
+  getMyFriends: ActorMethod<[string], Array<PublicUser>>;
+  areFriends: ActorMethod<[bigint, bigint], boolean>;
 }
 
 export declare const idlFactory: IDL.InterfaceFactory;

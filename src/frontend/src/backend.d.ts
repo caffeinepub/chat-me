@@ -55,6 +55,10 @@ export type SetUsernameResult =
     | { ok: null }
     | { err: string };
 
+export type AddFriendResult =
+    | { ok: null }
+    | { err: string };
+
 export interface AdminStats {
     userCount: bigint;
     users: PublicUser[];
@@ -88,4 +92,7 @@ export interface backendInterface {
     isUserOnline(userId: bigint): Promise<boolean>;
     setChatWallpaper(token: string, chatId: string, wallpaper: string): Promise<boolean>;
     getChatWallpaper(chatId: string): Promise<string>;
+    addFriend(token: string, friendId: bigint): Promise<AddFriendResult>;
+    getMyFriends(token: string): Promise<PublicUser[]>;
+    areFriends(userId1: bigint, userId2: bigint): Promise<boolean>;
 }

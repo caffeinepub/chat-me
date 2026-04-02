@@ -1,6 +1,8 @@
-const CACHE_NAME = 'chat-me-v1';
+const CACHE_NAME = 'chat-me-v3';
 const urlsToCache = [
-  '/'
+  '/',
+  '/manifest.json',
+  '/assets/generated/chat-me-pwa-icon.dim_512x512.png'
 ];
 
 self.addEventListener('install', (event) => {
@@ -20,7 +22,6 @@ self.addEventListener('activate', (event) => {
 });
 
 self.addEventListener('fetch', (event) => {
-  // Network first for API calls, cache fallback for assets
   if (event.request.url.includes('/api/')) {
     event.respondWith(
       fetch(event.request).catch(() =>

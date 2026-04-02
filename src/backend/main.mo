@@ -142,6 +142,8 @@ persistent actor ChatMe {
   var otpsStable: [(Text, Text)] = [];
   var wallpapersStable: [(Text, Text)] = [];
   var lastSeenStable: [(UserId, Int)] = [];
+  // Friends: userId -> [friendId] (both directions stored)
+  var friendsStable: [(UserId, [UserId])] = [];
 
   func natHash(n: Nat): Nat32 { Nat32.fromNat(n % 4294967295) };
 
@@ -151,6 +153,8 @@ persistent actor ChatMe {
   transient var otps : HashMap.HashMap<Text, Text> = HashMap.HashMap(16, Text.equal, Text.hash);
   transient var chatWallpapers : HashMap.HashMap<Text, Text> = HashMap.HashMap(16, Text.equal, Text.hash);
   transient var lastSeen : HashMap.HashMap<UserId, Int> = HashMap.HashMap(16, Nat.equal, natHash);
+  // Friends map: userId -> Buffer of friendIds
+  transient var friends : HashMap.HashMap<UserId, Buffer.Buffer<UserId>> = HashMap.HashMap(16, Nat.equal, natHash);
 
   func makeAutoUsername(name: Text, uid: Nat): Text {
     var base = "";
@@ -176,6 +180,12 @@ persistent actor ChatMe {
     otpsStable := Iter.toArray(otps.entries());
     wallpapersStable := Iter.toArray(chatWallpapers.entries());
     lastSeenStable := Iter.toArray(lastSeen.entries());
+    // Serialize friends
+    let fb = Buffer.Buffer<(UserId, [UserId])>(friends.size());
+    for ((uid, buf) in friends.entries()) {
+      fb.add((uid, Buffer.toArray(buf)));
+    };
+    friendsStable := Buffer.toArray(fb);
     usersStable := [];
     usersStableV2 := [];
   };
@@ -213,6 +223,12 @@ persistent actor ChatMe {
     otps := HashMap.fromIter<Text, Text>(otpsStable.vals(), 16, Text.equal, Text.hash);
     chatWallpapers := HashMap.fromIter<Text, Text>(wallpapersStable.vals(), 16, Text.equal, Text.hash);
     lastSeen := HashMap.fromIter<UserId, Int>(lastSeenStable.vals(), 16, Nat.equal, natHash);
+    // Restore friends
+    for ((uid, arr) in friendsStable.vals()) {
+      let buf = Buffer.Buffer<UserId>(arr.size());
+      for (fid in arr.vals()) { buf.add(fid); };
+      friends.put(uid, buf);
+    };
     for ((uid, _) in usersById.entries()) {
       if (uid >= nextUserId) { nextUserId := uid + 1; };
     };
@@ -227,6 +243,7 @@ persistent actor ChatMe {
     otpsStable := [];
     wallpapersStable := [];
     lastSeenStable := [];
+    friendsStable := [];
   };
 
   func makeToken(userId: Nat): Text {
@@ -285,7 +302,6 @@ persistent actor ChatMe {
 
   // ===== Online Presence =====
 
-  // Call this every ~10 seconds from the frontend to mark user as online
   public func heartbeat(token: Text): async Bool {
     switch (getUserByToken(token)) {
       case null false;
@@ -296,12 +312,96 @@ persistent actor ChatMe {
     };
   };
 
-  // Returns true if user was last seen within 30 seconds
   public query func isUserOnline(userId: UserId): async Bool {
-    let threshold: Int = 30_000_000_000; // 30 seconds in nanoseconds
+    let threshold: Int = 30_000_000_000;
     switch (lastSeen.get(userId)) {
       case null false;
       case (?ts) { Time.now() - ts < threshold };
+    };
+  };
+
+  // ===== Friends =====
+
+  // Add friend: both users get each other added
+  public func addFriend(token: Text, friendId: UserId): async { #ok; #err: Text } {
+    switch (getUserByToken(token)) {
+      case null { #err("Not logged in") };
+      case (?me) {
+        if (me.id == friendId) return #err("Cannot add yourself");
+        // Check friend exists
+        switch (usersById.get(friendId)) {
+          case null { #err("User not found") };
+          case (?_) {
+            // Add friendId to my list
+            let myBuf = switch (friends.get(me.id)) {
+              case null {
+                let b = Buffer.Buffer<UserId>(4);
+                friends.put(me.id, b);
+                b;
+              };
+              case (?b) { b };
+            };
+            var alreadyMyFriend = false;
+            for (fid in myBuf.vals()) {
+              if (fid == friendId) alreadyMyFriend := true;
+            };
+            if (not alreadyMyFriend) myBuf.add(friendId);
+
+            // Add me to friend's list
+            let theirBuf = switch (friends.get(friendId)) {
+              case null {
+                let b = Buffer.Buffer<UserId>(4);
+                friends.put(friendId, b);
+                b;
+              };
+              case (?b) { b };
+            };
+            var alreadyTheirFriend = false;
+            for (fid in theirBuf.vals()) {
+              if (fid == me.id) alreadyTheirFriend := true;
+            };
+            if (not alreadyTheirFriend) theirBuf.add(me.id);
+
+            #ok;
+          };
+        };
+      };
+    };
+  };
+
+  // Get my friends list
+  public func getMyFriends(token: Text): async [PublicUser] {
+    switch (getUserByToken(token)) {
+      case null { [] };
+      case (?me) {
+        switch (friends.get(me.id)) {
+          case null { [] };
+          case (?buf) {
+            let result = Buffer.Buffer<PublicUser>(buf.size());
+            for (fid in buf.vals()) {
+              switch (usersById.get(fid)) {
+                case null {};
+                case (?u) { result.add(toPublic(u)); };
+              };
+            };
+            Buffer.toArray(result);
+          };
+        };
+      };
+    };
+  };
+
+  // Check if two users are friends
+  public query func areFriends(userId1: UserId, userId2: UserId): async Bool {
+    switch (friends.get(userId1)) {
+      case null { false };
+      case (?buf) {
+        var found = false;
+        for (fid in buf.vals()) {
+          if (fid == userId2) found := true;
+        };
+        found;
+      };
     };
   };
 
@@ -406,7 +506,6 @@ persistent actor ChatMe {
           text = text; imageUrl = imageUrl; timestamp = Time.now();
         };
         messages.put(msgId, msg);
-        // Update last seen on activity
         lastSeen.put(u.id, Time.now());
         ?msgId;
       };
@@ -510,6 +609,34 @@ persistent actor ChatMe {
             };
           };
         };
+
+        // Also include friends who haven't chatted yet
+        switch (friends.get(me.id)) {
+          case null {};
+          case (?friendBuf) {
+            for (fid in friendBuf.vals()) {
+              let chatId = "dm_" # Nat.toText(if (me.id < fid) me.id else fid) # "_" # Nat.toText(if (me.id < fid) fid else me.id);
+              switch (convMap.get(chatId)) {
+                case (?_) {}; // already has messages
+                case null {
+                  // Add placeholder with 0 timestamp so it shows but at bottom
+                  switch (usersById.get(fid)) {
+                    case null {};
+                    case (?fu) {
+                      let placeholder: Message = {
+                        id = 0; chatId = chatId; senderId = 0;
+                        senderName = ""; text = "Say hello! 👋";
+                        imageUrl = ""; timestamp = 0;
+                      };
+                      convMap.put(chatId, placeholder);
+                    };
+                  };
+                };
+              };
+            };
+          };
+        };
+
         let buf = Buffer.Buffer<ConversationInfo>(convMap.size());
         for ((chatId, lastMsg) in convMap.entries()) {
           switch (getOtherUserIdFromChatId(chatId, me.id)) {
@@ -524,7 +651,7 @@ persistent actor ChatMe {
                     otherUserName = otherUser.name;
                     otherUserUsername = otherUser.username;
                     otherUserAvatar = otherUser.avatarUrl;
-                    lastMessage = if (lastMsg.text == "") "[Media]" else lastMsg.text;
+                    lastMessage = if (lastMsg.text == "") "Say hello! 👋" else lastMsg.text;
                     lastTimestamp = lastMsg.timestamp;
                   });
                 };

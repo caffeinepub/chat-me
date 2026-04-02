@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { PublicUser } from "./backend.d";
 import ActiveChat from "./components/ActiveChat";
 import AdminView from "./components/AdminView";
@@ -67,6 +67,133 @@ const deserializeUser = (raw: string): PublicUser | null => {
     return null;
   }
 };
+
+// PWA Install Banner Component
+function InstallBanner() {
+  const [deferredPrompt, setDeferredPrompt] = useState<Event | null>(null);
+  const [showBanner, setShowBanner] = useState(false);
+  const dismissed = useRef(false);
+
+  useEffect(() => {
+    // Don't show if already installed or dismissed before
+    const alreadyDismissed = localStorage.getItem("chatme_install_dismissed");
+    if (alreadyDismissed) return;
+
+    // Check if already running as PWA
+    if (window.matchMedia("(display-mode: standalone)").matches) return;
+
+    const handler = (e: Event) => {
+      e.preventDefault();
+      setDeferredPrompt(e);
+      if (!dismissed.current) {
+        setTimeout(() => setShowBanner(true), 3000);
+      }
+    };
+
+    window.addEventListener("beforeinstallprompt", handler);
+    return () => window.removeEventListener("beforeinstallprompt", handler);
+  }, []);
+
+  const handleInstall = async () => {
+    if (!deferredPrompt) return;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (deferredPrompt as any).prompt();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { outcome } = await (deferredPrompt as any).userChoice;
+    if (outcome === "accepted") {
+      setShowBanner(false);
+      localStorage.setItem("chatme_install_dismissed", "1");
+    }
+    setDeferredPrompt(null);
+  };
+
+  const handleDismiss = () => {
+    dismissed.current = true;
+    setShowBanner(false);
+    localStorage.setItem("chatme_install_dismissed", "1");
+  };
+
+  if (!showBanner) return null;
+
+  return (
+    <div
+      style={{
+        position: "fixed",
+        bottom: 24,
+        left: "50%",
+        transform: "translateX(-50%)",
+        zIndex: 9999,
+        background: "linear-gradient(135deg, #ff80ab, #ea80fc)",
+        borderRadius: 20,
+        boxShadow: "0 8px 32px rgba(240,98,146,0.45)",
+        padding: "14px 22px",
+        display: "flex",
+        alignItems: "center",
+        gap: 14,
+        minWidth: 290,
+        maxWidth: 340,
+        fontFamily: "'Quicksand', sans-serif",
+      }}
+    >
+      <img
+        src="/assets/generated/chat-me-pwa-icon.dim_512x512.png"
+        alt="Chat Me"
+        style={{ width: 48, height: 48, borderRadius: 12, flexShrink: 0 }}
+      />
+      <div style={{ flex: 1 }}>
+        <div
+          style={{
+            color: "#fff",
+            fontWeight: 700,
+            fontSize: 14,
+            marginBottom: 2,
+          }}
+        >
+          📲 Install Chat Me
+        </div>
+        <div style={{ color: "rgba(255,255,255,0.88)", fontSize: 12 }}>
+          Home screen pe add karo — app jaisa feel!
+        </div>
+      </div>
+      <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+        <button
+          type="button"
+          onClick={handleInstall}
+          style={{
+            background: "#fff",
+            color: "#e91e8c",
+            border: "none",
+            borderRadius: 10,
+            padding: "5px 14px",
+            fontWeight: 700,
+            fontSize: 12,
+            cursor: "pointer",
+            fontFamily: "'Quicksand', sans-serif",
+          }}
+        >
+          Install
+        </button>
+        <button
+          type="button"
+          onClick={handleDismiss}
+          style={{
+            background: "transparent",
+            color: "rgba(255,255,255,0.8)",
+            border: "1px solid rgba(255,255,255,0.4)",
+            borderRadius: 10,
+            padding: "4px 14px",
+            fontWeight: 600,
+            fontSize: 11,
+            cursor: "pointer",
+            fontFamily: "'Quicksand', sans-serif",
+          }}
+        >
+          Later
+        </button>
+      </div>
+    </div>
+  );
+}
 
 export default function App() {
   const [view, setView] = useState<View>("splash");
@@ -157,7 +284,13 @@ export default function App() {
   };
 
   if (view === "splash") return <SplashScreen />;
-  if (view === "login") return <LoginScreen onLogin={handleLogin} />;
+  if (view === "login")
+    return (
+      <>
+        <LoginScreen onLogin={handleLogin} />
+        <InstallBanner />
+      </>
+    );
 
   if (view === "admin" && token) {
     return (
@@ -193,7 +326,6 @@ export default function App() {
           <LeftSidebar
             token={token ?? ""}
             onOpenChat={(chatId) => {
-              // For group chats (not dm_) prefix with group_
               if (chatId.startsWith("dm_")) {
                 openChat(chatId, chatId);
               } else {
@@ -229,19 +361,23 @@ export default function App() {
         >
           +
         </button>
+        <InstallBanner />
       </div>
     );
   }
 
   if (view === "chatList") {
     return (
-      <ChatList
-        token={token ?? ""}
-        currentUser={currentUser}
-        onOpenChat={openChat}
-        onNav={setView}
-        activeChatId={activeChatId || null}
-      />
+      <>
+        <ChatList
+          token={token ?? ""}
+          currentUser={currentUser}
+          onOpenChat={openChat}
+          onNav={setView}
+          activeChatId={activeChatId || null}
+        />
+        <InstallBanner />
+      </>
     );
   }
 

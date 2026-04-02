@@ -150,6 +150,15 @@ export class Backend implements backendInterface {
     async login(phone: string, pin: string) {
         return this.actor.login(phone, pin);
     }
+    async addFriend(token: string, friendId: bigint) {
+        return this.actor.addFriend(token, friendId);
+    }
+    async getMyFriends(token: string) {
+        return this.actor.getMyFriends(token);
+    }
+    async areFriends(userId1: bigint, userId2: bigint) {
+        return this.actor.areFriends(userId1, userId2);
+    }
 }
 
 export interface CreateActorOptions {

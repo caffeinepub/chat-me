@@ -56,6 +56,11 @@ export const idlFactory = ({ IDL }) => {
     err: IDL.Text,
   });
 
+  const AddFriendResult = IDL.Variant({
+    ok: IDL.Null,
+    err: IDL.Text,
+  });
+
   const AdminStats = IDL.Record({
     userCount: IDL.Nat,
     users: IDL.Vec(PublicUser),
@@ -77,6 +82,9 @@ export const idlFactory = ({ IDL }) => {
     getChatWallpaper: IDL.Func([IDL.Text], [IDL.Text], ['query']),
     heartbeat: IDL.Func([IDL.Text], [IDL.Bool], []),
     isUserOnline: IDL.Func([IDL.Nat], [IDL.Bool], ['query']),
+    addFriend: IDL.Func([IDL.Text, IDL.Nat], [AddFriendResult], []),
+    getMyFriends: IDL.Func([IDL.Text], [IDL.Vec(PublicUser)], []),
+    areFriends: IDL.Func([IDL.Nat, IDL.Nat], [IDL.Bool], ['query']),
     adminGetStats: IDL.Func([IDL.Text], [IDL.Opt(AdminStats)], []),
     getAllUsers: IDL.Func([], [IDL.Vec(PublicUser)], ['query']),
     getUserById: IDL.Func([IDL.Nat], [IDL.Opt(PublicUser)], ['query']),

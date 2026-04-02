@@ -4,91 +4,6 @@ import type { ConversationInfo, PublicUser } from "../backend.d";
 import { getActor, withRetry } from "../lib/actor";
 import BottomNav from "./BottomNav";
 
-// Play a soft notification sound using Web Audio API
-function playNotificationSound() {
-  try {
-    const ctx = new (
-      window.AudioContext || (window as any).webkitAudioContext
-    )();
-    const osc = ctx.createOscillator();
-    const gain = ctx.createGain();
-    osc.connect(gain);
-    gain.connect(ctx.destination);
-    osc.frequency.setValueAtTime(880, ctx.currentTime);
-    osc.frequency.exponentialRampToValueAtTime(440, ctx.currentTime + 0.15);
-    gain.gain.setValueAtTime(0.3, ctx.currentTime);
-    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.3);
-    osc.start(ctx.currentTime);
-    osc.stop(ctx.currentTime + 0.3);
-  } catch {
-    // ignore if audio not supported
-  }
-}
-
-function getStorageKey(currentUser: PublicUser | null, token: string): string {
-  if (currentUser?.id != null) return `chatme_contacts_uid_${currentUser.id}`;
-  if (token && !token.startsWith("demo-")) return `chatme_contacts_${token}`;
-  return "";
-}
-
-function loadContactsFromStorage(
-  currentUser: PublicUser | null,
-  token: string,
-): ConversationInfo[] {
-  const keys = [
-    currentUser?.id != null ? `chatme_contacts_uid_${currentUser.id}` : "",
-    token && !token.startsWith("demo-") ? `chatme_contacts_${token}` : "",
-  ].filter(Boolean);
-
-  for (const key of keys) {
-    try {
-      const saved = localStorage.getItem(key);
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        return parsed.map((c: any) => ({
-          ...c,
-          lastTimestamp: BigInt(c.lastTimestamp ?? 0),
-        }));
-      }
-    } catch {
-      // try next key
-    }
-  }
-  return [];
-}
-
-function saveContactsToStorage(
-  currentUser: PublicUser | null,
-  token: string,
-  contacts: ConversationInfo[],
-) {
-  const key = getStorageKey(currentUser, token);
-  if (!key) return;
-  try {
-    const serializable = contacts.map((c) => ({
-      ...c,
-      lastTimestamp: c.lastTimestamp.toString(),
-    }));
-    localStorage.setItem(key, JSON.stringify(serializable));
-  } catch {
-    // ignore
-  }
-}
-
-function sortConversations(
-  convs: ConversationInfo[],
-  adminId?: bigint,
-): ConversationInfo[] {
-  return [...convs].sort((a, b) => {
-    // Admin always first
-    if (adminId !== undefined) {
-      if (a.otherUserId === adminId) return -1;
-      if (b.otherUserId === adminId) return 1;
-    }
-    return Number(b.lastTimestamp) - Number(a.lastTimestamp);
-  });
-}
-
 interface ChatListProps {
   token: string;
   currentUser: PublicUser | null;
@@ -105,9 +20,10 @@ export default function ChatList({
   activeChatId,
 }: ChatListProps) {
   const [search, setSearch] = useState("");
-  const [conversations, setConversations] = useState<ConversationInfo[]>(() =>
-    loadContactsFromStorage(currentUser, token),
-  );
+  const [realConversations, setRealConversations] = useState<
+    ConversationInfo[]
+  >([]);
+  const [pendingChats, setPendingChats] = useState<ConversationInfo[]>([]);
   const [onlineUsers, setOnlineUsers] = useState<Set<string>>(new Set());
   const [unreadCounts, setUnreadCounts] = useState<Record<string, number>>({});
   const prevTimestamps = useRef<Record<string, bigint>>({});
@@ -116,25 +32,6 @@ export default function ChatList({
   const [searching, setSearching] = useState(false);
   const [searchErr, setSearchErr] = useState("");
   const [showFindPanel, setShowFindPanel] = useState(false);
-  const [addingFriend, setAddingFriend] = useState(false);
-  const [addedFriends, setAddedFriends] = useState<Set<string>>(new Set());
-  // Admin user id (id = 1n)
-  const adminId = 1n;
-
-  // Reload from storage when currentUser becomes available
-  useEffect(() => {
-    if (!currentUser) return;
-    const fromStorage = loadContactsFromStorage(currentUser, token);
-    if (fromStorage.length > 0) {
-      setConversations((prev) => {
-        const merged = [...prev];
-        for (const c of fromStorage) {
-          if (!merged.some((m) => m.chatId === c.chatId)) merged.push(c);
-        }
-        return sortConversations(merged, adminId);
-      });
-    }
-  }, [currentUser, token]);
 
   useEffect(() => {
     if (!token) return;
@@ -144,18 +41,7 @@ export default function ChatList({
           actor.getUserConversations(token),
         );
         const convList = convs as ConversationInfo[];
-
-        // Merge backend data with local contacts (never lose local contacts)
-        setConversations((prev) => {
-          const merged = [...convList];
-          for (const p of prev) {
-            if (!merged.some((r) => r.chatId === p.chatId)) merged.push(p);
-          }
-          const sorted = sortConversations(merged, adminId);
-          // Always save merged result to localStorage
-          saveContactsToStorage(currentUser, token, sorted);
-          return sorted;
-        });
+        setRealConversations(convList);
 
         // Update unread counts
         setUnreadCounts((prev) => {
@@ -171,7 +57,6 @@ export default function ChatList({
               chatId !== activeChatId
             ) {
               updated[chatId] = (updated[chatId] ?? 0) + 1;
-              playNotificationSound();
             }
             prevTimestamps.current[chatId] = newTs;
           }
@@ -209,9 +94,20 @@ export default function ChatList({
     load();
     const id = setInterval(load, 2000);
     return () => clearInterval(id);
-  }, [token, activeChatId, currentUser]);
+  }, [token, activeChatId]);
 
-  const filteredConvs = conversations.filter(
+  const mergedConversations = [
+    ...realConversations,
+    ...pendingChats.filter(
+      (p) => !realConversations.some((r) => r.chatId === p.chatId),
+    ),
+  ].sort((a, b) => {
+    const aTs = Number(a.lastTimestamp);
+    const bTs = Number(b.lastTimestamp);
+    return bTs - aTs;
+  });
+
+  const filteredConvs = mergedConversations.filter(
     (c) =>
       c.otherUserName.toLowerCase().includes(search.toLowerCase()) ||
       c.otherUserUsername.toLowerCase().includes(search.toLowerCase()),
@@ -247,19 +143,16 @@ export default function ChatList({
     }
   };
 
-  const handleAddFriend = async (user: PublicUser) => {
-    if (!currentUser || !token) return;
-    setAddingFriend(true);
-    try {
-      const actor = await getActor();
-      await (actor as any).addFriend(token, user.id);
-      setAddedFriends((prev) => new Set([...prev, user.id.toString()]));
+  const handleStartChat = (user: PublicUser) => {
+    if (!currentUser) return;
+    const myId = Number(currentUser.id);
+    const theirId = Number(user.id);
+    const chatId = `dm_${Math.min(myId, theirId)}_${Math.max(myId, theirId)}`;
+    const displayName = user.name;
 
-      // Also add to local conversation list immediately
-      const myId = Number(currentUser.id);
-      const theirId = Number(user.id);
-      const chatId = `dm_${Math.min(myId, theirId)}_${Math.max(myId, theirId)}`;
-      const newContact: ConversationInfo = {
+    const alreadyExists = realConversations.some((c) => c.chatId === chatId);
+    if (!alreadyExists) {
+      const pending: ConversationInfo = {
         chatId,
         otherUserId: user.id,
         otherUserName: user.name,
@@ -268,42 +161,11 @@ export default function ChatList({
         lastMessage: "Say hello! 👋",
         lastTimestamp: 0n,
       };
-      setConversations((prev) => {
-        if (prev.some((c) => c.chatId === chatId)) return prev;
-        const updated = sortConversations([newContact, ...prev], adminId);
-        saveContactsToStorage(currentUser, token, updated);
-        return updated;
+      setPendingChats((prev) => {
+        const exists = prev.some((c) => c.chatId === pending.chatId);
+        return exists ? prev : [pending, ...prev];
       });
-    } catch {
-      // ignore
-    } finally {
-      setAddingFriend(false);
     }
-  };
-
-  const handleStartChat = (user: PublicUser) => {
-    if (!currentUser) return;
-    const myId = Number(currentUser.id);
-    const theirId = Number(user.id);
-    const chatId = `dm_${Math.min(myId, theirId)}_${Math.max(myId, theirId)}`;
-    const displayName = user.name;
-
-    const newContact: ConversationInfo = {
-      chatId,
-      otherUserId: user.id,
-      otherUserName: user.name,
-      otherUserUsername: user.username,
-      otherUserAvatar: user.avatarUrl,
-      lastMessage: "Say hello! 👋",
-      lastTimestamp: 0n,
-    };
-
-    setConversations((prev) => {
-      if (prev.some((c) => c.chatId === chatId)) return prev;
-      const updated = sortConversations([newContact, ...prev], adminId);
-      saveContactsToStorage(currentUser, token, updated);
-      return updated;
-    });
 
     handleOpenChat(chatId, displayName);
     setShowFindPanel(false);
@@ -367,7 +229,7 @@ export default function ChatList({
                     color: "#1E1E1E",
                   }}
                   onKeyDown={(e) => e.key === "Enter" && handleFindUser()}
-                  data-ocid="chatlist.search_input"
+                  data-ocid="chatlist.username_search_input"
                 />
               </div>
               <button
@@ -418,44 +280,15 @@ export default function ChatList({
                     @{foundUser.username}
                   </p>
                 </div>
-                {/* Buttons: Add Friend + Chat */}
-                <div className="flex flex-col gap-1.5">
-                  {/* Add Friend button */}
-                  {currentUser && foundUser.id !== currentUser.id && (
-                    <button
-                      type="button"
-                      onClick={() => handleAddFriend(foundUser)}
-                      disabled={
-                        addingFriend ||
-                        addedFriends.has(foundUser.id.toString())
-                      }
-                      className="px-3 py-1.5 rounded-full text-xs font-bold text-white hover:opacity-85 transition-all"
-                      style={{
-                        background: addedFriends.has(foundUser.id.toString())
-                          ? "#a3e635"
-                          : "#7A5AF8",
-                        minWidth: "64px",
-                      }}
-                      data-ocid="chatlist.add_friend_button"
-                    >
-                      {addedFriends.has(foundUser.id.toString())
-                        ? "✓ Added"
-                        : addingFriend
-                          ? "..."
-                          : "➕ Add"}
-                    </button>
-                  )}
-                  {/* Chat button */}
-                  <button
-                    type="button"
-                    onClick={() => handleStartChat(foundUser)}
-                    className="px-3 py-1.5 rounded-full text-xs font-bold text-white hover:opacity-85 transition-all"
-                    style={{ background: "#FF8C9F" }}
-                    data-ocid="chatlist.start_chat_button"
-                  >
-                    Chat 💬
-                  </button>
-                </div>
+                <button
+                  type="button"
+                  onClick={() => handleStartChat(foundUser)}
+                  className="px-3 py-1.5 rounded-full text-xs font-bold text-white hover:opacity-85 transition-all"
+                  style={{ background: "#FF8C9F" }}
+                  data-ocid="chatlist.start_chat_button"
+                >
+                  Chat 💬
+                </button>
               </div>
             )}
           </div>
@@ -520,7 +353,6 @@ export default function ChatList({
             : "";
           const isOnline = onlineUsers.has(conv.otherUserId.toString());
           const unread = unreadCounts[conv.chatId] ?? 0;
-          const isAdmin = conv.otherUserId === adminId;
           return (
             <button
               key={conv.chatId}
@@ -528,10 +360,7 @@ export default function ChatList({
               onClick={() => handleOpenChat(conv.chatId, conv.otherUserName)}
               data-ocid={`chatlist.item.${i + 1}`}
               className="flex items-center gap-3 px-4 py-3 rounded-2xl transition-all hover:opacity-85 text-left"
-              style={{
-                background: isAdmin ? "#FFF0F8" : "#FFFAF5",
-                border: isAdmin ? "1.5px solid #FF8C9F" : "1.5px solid #FFD1DC",
-              }}
+              style={{ background: "#FFFAF5", border: "1.5px solid #FFD1DC" }}
             >
               <div className="relative flex-shrink-0">
                 <div
@@ -539,9 +368,7 @@ export default function ChatList({
                   style={{
                     background: conv.otherUserAvatar
                       ? undefined
-                      : isAdmin
-                        ? "linear-gradient(135deg, #FF8C9F 0%, #FFB6C1 100%)"
-                        : "linear-gradient(135deg, #FFB6C1 0%, #C1A0FF 100%)",
+                      : "linear-gradient(135deg, #FFB6C1 0%, #C1A0FF 100%)",
                   }}
                 >
                   {conv.otherUserAvatar ? (
@@ -563,7 +390,7 @@ export default function ChatList({
               </div>
               <div className="flex-1 min-w-0">
                 <div className="flex items-center justify-between gap-1">
-                  {/* Name + @username + admin badge */}
+                  {/* Name + @username on same line */}
                   <div className="flex items-baseline gap-1.5 min-w-0 flex-1">
                     <span
                       className="font-bold text-sm truncate"
@@ -577,17 +404,6 @@ export default function ChatList({
                     >
                       @{conv.otherUserUsername}
                     </span>
-                    {isAdmin && (
-                      <span
-                        className="text-[10px] font-bold px-1.5 py-0.5 rounded-full flex-shrink-0"
-                        style={{
-                          background: "#FFD1DC",
-                          color: "#C0304A",
-                        }}
-                      >
-                        Admin
-                      </span>
-                    )}
                   </div>
                   <div className="flex items-center gap-1.5 flex-shrink-0">
                     <span className="text-xs" style={{ color: "#aaa" }}>
