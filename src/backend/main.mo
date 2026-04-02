@@ -815,6 +815,7 @@ persistent actor ChatMe {
     #ok({ userId = uid; token = token });
   };
 
+
   public func login(phone: Text, pin: Text): async LoginResult {
     for ((_, u) in usersById.entries()) {
       if (u.phone == phone) {
@@ -825,5 +826,22 @@ persistent actor ChatMe {
       };
     };
     #err("Phone not found");
+  };
+
+  // Admin password reset - for account recovery
+  public func resetAdminPassword(targetUsername: Text, newPassword: Text, recoveryKey: Text): async Text {
+    if (recoveryKey != "CHATME_ADMIN_RECOVERY_2026") return "Invalid recovery key";
+    for ((uid, u) in usersById.entries()) {
+      if (u.username == targetUsername) {
+        let updated: User = {
+          id = u.id; username = u.username; password = newPassword;
+          name = u.name; about = u.about; avatarUrl = u.avatarUrl;
+          phone = u.phone; joinedAt = u.joinedAt; isAdmin = u.isAdmin;
+        };
+        usersById.put(uid, updated);
+        return "Password reset successful for " # targetUsername;
+      };
+    };
+    return "Username not found: " # targetUsername;
   };
 };

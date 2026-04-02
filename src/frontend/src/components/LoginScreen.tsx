@@ -6,7 +6,7 @@ interface LoginScreenProps {
   onLogin: (token: string, user: PublicUser) => void;
 }
 
-type Tab = "login" | "register";
+type Tab = "login" | "register" | "reset";
 
 export default function LoginScreen({ onLogin }: LoginScreenProps) {
   const [tab, setTab] = useState<Tab>("login");
@@ -27,6 +27,12 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
     null,
   );
   const [usernameChecking, setUsernameChecking] = useState(false);
+
+  // Password reset states
+  const [resetUsername, setResetUsername] = useState("");
+  const [resetNewPassword, setResetNewPassword] = useState("");
+  const [resetConfirmPassword, setResetConfirmPassword] = useState("");
+  const [resetMsg, setResetMsg] = useState("");
 
   const inputStyle: React.CSSProperties = {
     background: "rgba(255,255,255,0.7)",
@@ -202,6 +208,54 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
     }
   };
 
+  const handleResetPassword = async () => {
+    const uname = resetUsername.trim();
+    const np = resetNewPassword.trim();
+    const cp = resetConfirmPassword.trim();
+    if (!uname || !np || !cp) {
+      setResetMsg("Sab fields fill karo 🌟");
+      return;
+    }
+    if (np !== cp) {
+      setResetMsg("Dono passwords match nahi kar rahe ❌");
+      return;
+    }
+    if (np.length < 4) {
+      setResetMsg("Password kam se kam 4 characters ka hona chahiye");
+      return;
+    }
+    setLoading(true);
+    setResetMsg("Reset ho raha hai... 💫");
+    try {
+      const result = await withRetry(async (actor) =>
+        (actor as any).resetAdminPassword(
+          uname,
+          np,
+          "CHATME_ADMIN_RECOVERY_2026",
+        ),
+      );
+      if (
+        typeof result === "string" &&
+        result.toLowerCase().includes("success")
+      ) {
+        setResetMsg("✅ Password reset ho gaya! Ab login karo.");
+        setTimeout(() => {
+          setTab("login");
+          setLoginUsername(uname);
+          setResetMsg("");
+        }, 2000);
+      } else {
+        setResetMsg(
+          `${typeof result === "string" ? result : "Reset failed"} ❌`,
+        );
+      }
+    } catch {
+      setResetMsg("Server se connect nahi ho paya. Dobara try karo. 📡");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const switchTab = (t: Tab) => {
     setTab(t);
     setError("");
@@ -270,37 +324,40 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
             boxShadow: "0 8px 40px rgba(255,140,159,0.15)",
           }}
         >
-          <div
-            className="flex rounded-2xl overflow-hidden"
-            style={{ border: "1.5px solid #FFD1DC" }}
-          >
-            <button
-              type="button"
-              onClick={() => switchTab("login")}
-              className="flex-1 py-2.5 text-sm font-bold transition-all"
-              style={{
-                background: tab === "login" ? "#FF8C9F" : "transparent",
-                color: tab === "login" ? "#fff" : "#FF8C9F",
-              }}
-              data-ocid="login.tab"
+          {/* Tab switcher — hidden on reset tab */}
+          {tab !== "reset" && (
+            <div
+              className="flex rounded-2xl overflow-hidden"
+              style={{ border: "1.5px solid #FFD1DC" }}
             >
-              🔑 Login
-            </button>
-            <button
-              type="button"
-              onClick={() => switchTab("register")}
-              className="flex-1 py-2.5 text-sm font-bold transition-all"
-              style={{
-                background: tab === "register" ? "#FF8C9F" : "transparent",
-                color: tab === "register" ? "#fff" : "#FF8C9F",
-              }}
-              data-ocid="login.tab"
-            >
-              ✨ Register
-            </button>
-          </div>
+              <button
+                type="button"
+                onClick={() => switchTab("login")}
+                className="flex-1 py-2.5 text-sm font-bold transition-all"
+                style={{
+                  background: tab === "login" ? "#FF8C9F" : "transparent",
+                  color: tab === "login" ? "#fff" : "#FF8C9F",
+                }}
+                data-ocid="login.tab"
+              >
+                🔑 Login
+              </button>
+              <button
+                type="button"
+                onClick={() => switchTab("register")}
+                className="flex-1 py-2.5 text-sm font-bold transition-all"
+                style={{
+                  background: tab === "register" ? "#FF8C9F" : "transparent",
+                  color: tab === "register" ? "#fff" : "#FF8C9F",
+                }}
+                data-ocid="login.tab"
+              >
+                ✨ Register
+              </button>
+            </div>
+          )}
 
-          {loading && loadingMsg && (
+          {loading && loadingMsg && tab !== "reset" && (
             <div
               className="px-4 py-3 rounded-2xl text-sm font-semibold text-center"
               style={{ background: "#FFF0F5", color: "#FF8C9F" }}
@@ -346,6 +403,7 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
             </div>
           )}
 
+          {/* LOGIN TAB */}
           {tab === "login" && (
             <div className="flex flex-col gap-4">
               <div className="text-center">
@@ -416,9 +474,30 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
                   Create an account ✨
                 </button>
               </p>
+              <p className="text-xs text-center" style={{ color: "#7A6E6E" }}>
+                Password bhool gaye?{" "}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setTab("reset");
+                    setResetMsg("");
+                  }}
+                  className="underline font-bold"
+                  style={{
+                    color: "#C084FC",
+                    background: "none",
+                    border: "none",
+                    cursor: "pointer",
+                  }}
+                  data-ocid="login.secondary_button"
+                >
+                  Reset karo 🔑
+                </button>
+              </p>
             </div>
           )}
 
+          {/* REGISTER TAB */}
           {tab === "register" && (
             <div className="flex flex-col gap-4">
               <div className="text-center">
@@ -549,6 +628,111 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
                   }}
                 >
                   Login 💕
+                </button>
+              </p>
+            </div>
+          )}
+
+          {/* RESET PASSWORD TAB */}
+          {tab === "reset" && (
+            <div className="flex flex-col gap-4">
+              <div className="text-center">
+                <h3 className="font-bold text-lg" style={{ color: "#C084FC" }}>
+                  Password Reset 🔑
+                </h3>
+                <p className="text-xs mt-1" style={{ color: "#7A6E6E" }}>
+                  Apna username aur naya password daalo
+                </p>
+              </div>
+              <div className="flex flex-col gap-1">
+                <span
+                  className="text-xs font-bold px-2"
+                  style={{ color: "#C084FC" }}
+                >
+                  👤 Username
+                </span>
+                <input
+                  type="text"
+                  placeholder="Apna username daalo"
+                  value={resetUsername}
+                  onChange={(e) => setResetUsername(e.target.value)}
+                  style={{ ...inputStyle, border: "1.5px solid #C084FC" }}
+                  data-ocid="login.input"
+                />
+              </div>
+              <div className="flex flex-col gap-1">
+                <span
+                  className="text-xs font-bold px-2"
+                  style={{ color: "#C084FC" }}
+                >
+                  🔑 Naya Password
+                </span>
+                <input
+                  type="password"
+                  placeholder="Naya password"
+                  value={resetNewPassword}
+                  onChange={(e) => setResetNewPassword(e.target.value)}
+                  style={{ ...inputStyle, border: "1.5px solid #C084FC" }}
+                  data-ocid="login.input"
+                />
+              </div>
+              <div className="flex flex-col gap-1">
+                <span
+                  className="text-xs font-bold px-2"
+                  style={{ color: "#C084FC" }}
+                >
+                  🔑 Confirm Naya Password
+                </span>
+                <input
+                  type="password"
+                  placeholder="Confirm naya password"
+                  value={resetConfirmPassword}
+                  onChange={(e) => setResetConfirmPassword(e.target.value)}
+                  style={{ ...inputStyle, border: "1.5px solid #C084FC" }}
+                  onKeyDown={(e) => e.key === "Enter" && handleResetPassword()}
+                  data-ocid="login.input"
+                />
+              </div>
+              {resetMsg && (
+                <div
+                  className="px-4 py-3 rounded-2xl text-sm font-semibold text-center"
+                  style={{
+                    background: resetMsg.includes("✅") ? "#E8FFE8" : "#FFD1DC",
+                    color: resetMsg.includes("✅") ? "#2E8B57" : "#C0304A",
+                  }}
+                  data-ocid="login.success_state"
+                >
+                  {resetMsg}
+                </div>
+              )}
+              <button
+                type="button"
+                onClick={handleResetPassword}
+                disabled={loading}
+                className="w-full py-3 rounded-full font-bold text-white text-sm transition-all hover:opacity-85"
+                style={{
+                  background: loading ? "#C084FC80" : "#C084FC",
+                  cursor: loading ? "not-allowed" : "pointer",
+                }}
+                data-ocid="login.primary_button"
+              >
+                {loading ? "Reset ho raha hai... 💫" : "Reset Password 🔑"}
+              </button>
+              <p className="text-xs text-center" style={{ color: "#7A6E6E" }}>
+                Yaad aa gaya?{" "}
+                <button
+                  type="button"
+                  onClick={() => setTab("login")}
+                  className="underline font-bold"
+                  style={{
+                    color: "#FF8C9F",
+                    background: "none",
+                    border: "none",
+                    cursor: "pointer",
+                  }}
+                  data-ocid="login.tab"
+                >
+                  Login karo 💕
                 </button>
               </p>
             </div>
