@@ -28,6 +28,7 @@ const chatEmoji: Record<string, string> = {
   "DM: Mia": "🎀",
 };
 
+// Fix 5: Expanded DOODLES array with more cute flowers
 const DOODLES = [
   { id: "d1", emoji: "💕", x: 8, y: 6, size: 32, rotate: -15 },
   { id: "d2", emoji: "✨", x: 25, y: 18, size: 28, rotate: 20 },
@@ -44,6 +45,11 @@ const DOODLES = [
   { id: "d13", emoji: "🌈", x: 20, y: 88, size: 32, rotate: 8 },
   { id: "d14", emoji: "🎵", x: 75, y: 35, size: 28, rotate: -30 },
   { id: "d15", emoji: "🌻", x: 50, y: 90, size: 34, rotate: 12 },
+  { id: "d16", emoji: "🌼", x: 30, y: 30, size: 30, rotate: 5 },
+  { id: "d17", emoji: "💐", x: 55, y: 65, size: 32, rotate: -8 },
+  { id: "d18", emoji: "🌸", x: 10, y: 55, size: 28, rotate: 18 },
+  { id: "d19", emoji: "🌺", x: 78, y: 15, size: 30, rotate: -12 },
+  { id: "d20", emoji: "🌻", x: 42, y: 48, size: 26, rotate: 22 },
 ];
 
 const GIF_EMOJIS = ["🐱", "💃", "🎉", "🌈", "🦄", "🍕", "🎨", "🌸"];
@@ -709,7 +715,8 @@ export default function ActiveChat({
                   top: `${d.y}%`,
                   ["--r" as string]: `${d.rotate}deg`,
                   ["--dur" as string]: `${dur}s`,
-                  opacity: 0.22,
+                  // Fix 5: increased opacity from 0.22 to 0.3
+                  opacity: 0.3,
                   filter: `drop-shadow(0 0 4px ${currentWallpaper.doodleColor}88)`,
                   animationDelay: `${(i * 0.35) % 2}s`,
                 }}
@@ -727,8 +734,9 @@ export default function ActiveChat({
             data-ocid={`activechat.item.${i + 1}`}
           >
             {msg.side === "left" && (
+              // Fix 3: changed self-end to self-start with mt-5 so DP appears at top
               <div
-                className="w-8 h-8 rounded-full flex-shrink-0 self-end"
+                className="w-8 h-8 rounded-full flex-shrink-0 self-start mt-5"
                 style={{ background: senderGrad[msg.sender] ?? "#FFD1DC" }}
               />
             )}
@@ -743,16 +751,19 @@ export default function ActiveChat({
                   {msg.sender}
                 </span>
               )}
+              {/* Fix 4: increased bubble size from text-sm/py-2.5 to text-base/py-3 */}
+              {/* Fix 1: text color adapts to dark mode */}
               <div
-                className="px-4 py-2.5 text-sm font-medium"
+                className="px-4 py-3 text-base font-medium"
                 style={{
                   background:
                     msg.side === "right"
                       ? currentBubble.sent
-                      : darkMode
-                        ? "#2a2a2a"
+                      : // Fix 6: slightly more visible dark mode received bubble
+                        darkMode
+                        ? "#2e2e3a"
                         : currentBubble.received,
-                  color: "#1E1E1E",
+                  color: darkMode ? "#f5f5f5" : "#1E1E1E",
                   borderRadius:
                     msg.side === "right"
                       ? "20px 20px 4px 20px"
@@ -969,6 +980,7 @@ export default function ActiveChat({
             />
           </svg>
         </button>
+        {/* Fix 2: input text color adapts to dark mode */}
         <input
           ref={inputRef}
           type="text"
@@ -980,7 +992,7 @@ export default function ActiveChat({
           style={{
             background: darkMode ? "#1a1a1a" : "#FFF5F8",
             border: `1.5px solid ${darkMode ? "#333" : "#FFD1DC"}`,
-            color: "#1E1E1E",
+            color: darkMode ? "#f5f5f5" : "#1E1E1E",
           }}
           data-ocid="activechat.input"
         />
