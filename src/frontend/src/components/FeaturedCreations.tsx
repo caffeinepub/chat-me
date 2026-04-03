@@ -25,19 +25,28 @@ const creations = [
   },
 ];
 
-export default function FeaturedCreations() {
+interface FeaturedCreationsProps {
+  darkMode?: boolean;
+}
+
+export default function FeaturedCreations({
+  darkMode = false,
+}: FeaturedCreationsProps) {
   return (
     <aside
       className="flex flex-col gap-4 p-4 rounded-2xl shadow-card"
       style={{
-        background: "#FFFAF5",
-        border: "1.5px solid #C1E1FF",
+        background: darkMode ? "#1a1a1a" : "#FFFAF5",
+        border: `1.5px solid ${darkMode ? "#333" : "#C1E1FF"}`,
         minWidth: "200px",
         maxWidth: "220px",
       }}
       data-ocid="featured.panel"
     >
-      <h2 className="font-bold text-base" style={{ color: "#1E1E1E" }}>
+      <h2
+        className="font-bold text-base"
+        style={{ color: darkMode ? "#f5f5f5" : "#1E1E1E" }}
+      >
         ✨ Featured Creations
       </h2>
 
@@ -45,7 +54,10 @@ export default function FeaturedCreations() {
         <div
           key={c.title}
           className="flex flex-col gap-2 p-3 rounded-2xl"
-          style={{ background: "#FFFAF5", border: "1.5px solid #FFD1DC" }}
+          style={{
+            background: darkMode ? "#222" : "#FFFAF5",
+            border: `1.5px solid ${darkMode ? "#333" : "#FFD1DC"}`,
+          }}
           data-ocid={`featured.item.${i + 1}`}
         >
           <div
@@ -53,10 +65,16 @@ export default function FeaturedCreations() {
             style={{ background: c.grad }}
           />
           <div>
-            <p className="font-bold text-sm" style={{ color: "#1E1E1E" }}>
+            <p
+              className="font-bold text-sm"
+              style={{ color: darkMode ? "#f5f5f5" : "#1E1E1E" }}
+            >
               {c.title}
             </p>
-            <p className="text-xs" style={{ color: "#5A4E4E" }}>
+            <p
+              className="text-xs"
+              style={{ color: darkMode ? "#aaa" : "#5A4E4E" }}
+            >
               {c.creator}
             </p>
           </div>
@@ -80,7 +98,7 @@ export default function FeaturedCreations() {
             <button
               type="button"
               className="flex items-center gap-1 text-xs font-semibold hover:opacity-70 transition-all"
-              style={{ color: "#5A4E4E" }}
+              style={{ color: darkMode ? "#aaa" : "#5A4E4E" }}
               data-ocid={`featured.share.button.${i + 1}`}
             >
               🔗 {c.shares}

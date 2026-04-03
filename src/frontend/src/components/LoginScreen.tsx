@@ -4,11 +4,15 @@ import { withRetry } from "../lib/actor";
 
 interface LoginScreenProps {
   onLogin: (token: string, user: PublicUser) => void;
+  darkMode?: boolean;
 }
 
 type Tab = "login" | "register" | "reset";
 
-export default function LoginScreen({ onLogin }: LoginScreenProps) {
+export default function LoginScreen({
+  onLogin,
+  darkMode = false,
+}: LoginScreenProps) {
   const [tab, setTab] = useState<Tab>("login");
   const [loading, setLoading] = useState(false);
   const [loadingMsg, setLoadingMsg] = useState("");
@@ -40,7 +44,7 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
     borderRadius: "50px",
     padding: "12px 20px",
     fontSize: "15px",
-    color: "#1E1E1E",
+    color: darkMode ? "#f5f5f5" : "#1E1E1E",
     outline: "none",
     width: "100%",
     fontFamily: "'Quicksand', sans-serif",
@@ -309,7 +313,10 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
             <h1 className="text-3xl font-bold" style={{ color: "#FF8C9F" }}>
               Chat Me 💬
             </h1>
-            <p className="text-sm mt-1" style={{ color: "#7A6E6E" }}>
+            <p
+              className="text-sm mt-1"
+              style={{ color: darkMode ? "#888" : "#7A6E6E" }}
+            >
               Cute chats, always 🌸
             </p>
           </div>
@@ -410,7 +417,10 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
                 <p className="font-bold text-base" style={{ color: "#FF8C9F" }}>
                   Welcome back! 💕
                 </p>
-                <p className="text-xs mt-1" style={{ color: "#7A6E6E" }}>
+                <p
+                  className="text-xs mt-1"
+                  style={{ color: darkMode ? "#888" : "#7A6E6E" }}
+                >
                   Enter your ID and password
                 </p>
               </div>
@@ -458,7 +468,10 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
               >
                 {loading ? loadingMsg || "Connecting... 💫" : "Login 💕"}
               </button>
-              <p className="text-xs text-center" style={{ color: "#7A6E6E" }}>
+              <p
+                className="text-xs text-center"
+                style={{ color: darkMode ? "#888" : "#7A6E6E" }}
+              >
                 New here?{" "}
                 <button
                   type="button"
@@ -474,7 +487,10 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
                   Create an account ✨
                 </button>
               </p>
-              <p className="text-xs text-center" style={{ color: "#7A6E6E" }}>
+              <p
+                className="text-xs text-center"
+                style={{ color: darkMode ? "#888" : "#7A6E6E" }}
+              >
                 Password bhool gaye?{" "}
                 <button
                   type="button"
@@ -504,7 +520,10 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
                 <p className="font-bold text-base" style={{ color: "#FF8C9F" }}>
                   Create your account ✨
                 </p>
-                <p className="text-xs mt-1" style={{ color: "#7A6E6E" }}>
+                <p
+                  className="text-xs mt-1"
+                  style={{ color: darkMode ? "#888" : "#7A6E6E" }}
+                >
                   Choose your unique ID 🌸
                 </p>
               </div>
@@ -614,7 +633,10 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
                   ? loadingMsg || "Creating account... 💫"
                   : "Join Chat Me 🎀"}
               </button>
-              <p className="text-xs text-center" style={{ color: "#7A6E6E" }}>
+              <p
+                className="text-xs text-center"
+                style={{ color: darkMode ? "#888" : "#7A6E6E" }}
+              >
                 Already have an account?{" "}
                 <button
                   type="button"
@@ -640,7 +662,10 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
                 <h3 className="font-bold text-lg" style={{ color: "#C084FC" }}>
                   Password Reset 🔑
                 </h3>
-                <p className="text-xs mt-1" style={{ color: "#7A6E6E" }}>
+                <p
+                  className="text-xs mt-1"
+                  style={{ color: darkMode ? "#888" : "#7A6E6E" }}
+                >
                   Apna username aur naya password daalo
                 </p>
               </div>
@@ -718,7 +743,10 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
               >
                 {loading ? "Reset ho raha hai... 💫" : "Reset Password 🔑"}
               </button>
-              <p className="text-xs text-center" style={{ color: "#7A6E6E" }}>
+              <p
+                className="text-xs text-center"
+                style={{ color: darkMode ? "#888" : "#7A6E6E" }}
+              >
                 Yaad aa gaya?{" "}
                 <button
                   type="button"
@@ -739,7 +767,10 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
           )}
         </div>
 
-        <p className="text-xs text-center" style={{ color: "#7A6E6E" }}>
+        <p
+          className="text-xs text-center"
+          style={{ color: darkMode ? "#888" : "#7A6E6E" }}
+        >
           Your username is your unique ID 💕
         </p>
       </div>

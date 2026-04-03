@@ -205,6 +205,28 @@ export default function App() {
   const [homeTheme, setHomeTheme] = useState<string>(
     () => localStorage.getItem("chatme_home_theme") || "default",
   );
+  const [darkMode, setDarkMode] = useState<boolean>(
+    () => localStorage.getItem("chatme_dark_mode") === "1",
+  );
+
+  // Apply dark mode class on mount
+  useEffect(() => {
+    if (localStorage.getItem("chatme_dark_mode") === "1") {
+      document.documentElement.classList.add("dark");
+    } else {
+      document.documentElement.classList.remove("dark");
+    }
+  }, []);
+
+  const handleDarkModeChange = (val: boolean) => {
+    setDarkMode(val);
+    localStorage.setItem("chatme_dark_mode", val ? "1" : "0");
+    if (val) {
+      document.documentElement.classList.add("dark");
+    } else {
+      document.documentElement.classList.remove("dark");
+    }
+  };
 
   useEffect(() => {
     const timer = setTimeout(async () => {
@@ -283,18 +305,23 @@ export default function App() {
     setView("activeChat");
   };
 
-  if (view === "splash") return <SplashScreen />;
+  if (view === "splash") return <SplashScreen darkMode={darkMode} />;
   if (view === "login")
     return (
       <>
-        <LoginScreen onLogin={handleLogin} />
+        <LoginScreen onLogin={handleLogin} darkMode={darkMode} />
         <InstallBanner />
       </>
     );
 
   if (view === "admin" && token) {
     return (
-      <AdminView token={token} onBack={() => setView("home")} onNav={setView} />
+      <AdminView
+        token={token}
+        onBack={() => setView("home")}
+        onNav={setView}
+        darkMode={darkMode}
+      />
     );
   }
 
@@ -303,7 +330,9 @@ export default function App() {
       <div
         className="min-h-screen flex flex-col"
         style={{
-          background: HOME_THEMES[homeTheme] ?? HOME_THEMES.default,
+          background: darkMode
+            ? "#0d0d0d"
+            : (HOME_THEMES[homeTheme] ?? HOME_THEMES.default),
           minWidth: "1200px",
           fontFamily: "'Quicksand', sans-serif",
         }}
@@ -312,6 +341,7 @@ export default function App() {
           activeTab="Home"
           dpUrl={dpUrl}
           currentUser={currentUser}
+          darkMode={darkMode}
           onNav={(tab) => {
             if (tab === "Chat") setView("chatList");
             else if (tab === "Account") setView("profile");
@@ -325,6 +355,7 @@ export default function App() {
         >
           <LeftSidebar
             token={token ?? ""}
+            darkMode={darkMode}
             onOpenChat={(chatId) => {
               if (chatId.startsWith("dm_")) {
                 openChat(chatId, chatId);
@@ -337,6 +368,7 @@ export default function App() {
             }}
           />
           <CentralDashboard
+            darkMode={darkMode}
             onJoinChat={(name) =>
               openChat(`group_${name.toLowerCase().replace(/ /g, "_")}`, name)
             }
@@ -345,12 +377,13 @@ export default function App() {
           <ChatPanel
             chatName="Art Buddies"
             messages={[]}
+            darkMode={darkMode}
             onSend={() => {}}
             onOpenChat={() => openChat("group_art_buddies", "Art Buddies")}
           />
-          <FeaturedCreations />
+          <FeaturedCreations darkMode={darkMode} />
         </main>
-        <Footer />
+        <Footer darkMode={darkMode} />
         <button
           type="button"
           onClick={() => setView("chatList")}
@@ -375,6 +408,7 @@ export default function App() {
           onOpenChat={openChat}
           onNav={setView}
           activeChatId={activeChatId || null}
+          darkMode={darkMode}
         />
         <InstallBanner />
       </>
@@ -390,6 +424,7 @@ export default function App() {
         currentUser={currentUser}
         onBack={() => setView("chatList")}
         onNav={setView}
+        darkMode={darkMode}
       />
     );
   }
@@ -411,6 +446,7 @@ export default function App() {
         onBack={() => setView("home")}
         onNav={setView}
         onLogout={handleLogout}
+        darkMode={darkMode}
         onUserUpdate={(updated) => {
           setCurrentUser(updated);
           localStorage.setItem("chatme_user", serializeUser(updated));
@@ -426,6 +462,8 @@ export default function App() {
         onNav={setView}
         homeTheme={homeTheme}
         onHomeThemeChange={handleHomeThemeChange}
+        darkMode={darkMode}
+        onDarkModeChange={handleDarkModeChange}
       />
     );
   }

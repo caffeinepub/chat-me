@@ -8,6 +8,7 @@ interface TopNavProps {
   dpUrl?: string | null;
   currentUser?: PublicUser | null;
   onNav?: (tab: string) => void;
+  darkMode?: boolean;
 }
 
 export default function TopNav({
@@ -15,10 +16,14 @@ export default function TopNav({
   dpUrl,
   currentUser,
   onNav,
+  darkMode = false,
 }: TopNavProps) {
   return (
     <nav
-      style={{ background: "#FFFAF5", borderBottom: "1.5px solid #FFD1DC" }}
+      style={{
+        background: darkMode ? "#111" : "#FFFAF5",
+        borderBottom: `1.5px solid ${darkMode ? "#333" : "#FFD1DC"}`,
+      }}
       className="w-full shadow-soft z-50"
     >
       <div className="flex items-center justify-between px-8 py-3 min-w-[1200px]">
@@ -53,8 +58,14 @@ export default function TopNav({
               className="px-4 py-1.5 rounded-full text-sm font-semibold transition-all hover:opacity-80"
               style={
                 link === activeTab
-                  ? { background: "#FFD1DC", color: "#FF8C9F" }
-                  : { background: "transparent", color: "#5A4E4E" }
+                  ? {
+                      background: darkMode ? "#2a2a2a" : "#FFD1DC",
+                      color: "#FF8C9F",
+                    }
+                  : {
+                      background: "transparent",
+                      color: darkMode ? "#ccc" : "#5A4E4E",
+                    }
               }
             >
               {link}
@@ -78,7 +89,10 @@ export default function TopNav({
 
         {/* User area */}
         <div className="flex items-center gap-3">
-          <span className="text-sm font-semibold" style={{ color: "#5A4E4E" }}>
+          <span
+            className="text-sm font-semibold"
+            style={{ color: darkMode ? "#ccc" : "#5A4E4E" }}
+          >
             {currentUser?.name ?? "Guest"} 🌸
           </span>
           <button

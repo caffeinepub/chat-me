@@ -95,6 +95,7 @@ interface ChatListProps {
   onOpenChat: (chatId: string, displayName: string) => void;
   onNav: (v: View) => void;
   activeChatId?: string | null;
+  darkMode?: boolean;
 }
 
 export default function ChatList({
@@ -103,6 +104,7 @@ export default function ChatList({
   onOpenChat,
   onNav,
   activeChatId,
+  darkMode = false,
 }: ChatListProps) {
   const [search, setSearch] = useState("");
   const [conversations, setConversations] = useState<ConversationInfo[]>(() =>
@@ -313,7 +315,9 @@ export default function ChatList({
     <div
       className="min-h-screen flex flex-col"
       style={{
-        background: "linear-gradient(160deg, #FFF5FA 0%, #EEE8FF 100%)",
+        background: darkMode
+          ? "#0d0d0d"
+          : "linear-gradient(160deg, #FFF5FA 0%, #EEE8FF 100%)",
         fontFamily: "'Quicksand', sans-serif",
         paddingBottom: "80px",
       }}
@@ -342,7 +346,10 @@ export default function ChatList({
         {showFindPanel && (
           <div
             className="mb-3 rounded-2xl p-4 flex flex-col gap-3"
-            style={{ background: "#F5F0FF", border: "1.5px solid #C4B5FD" }}
+            style={{
+              background: darkMode ? "#1a1a1a" : "#F5F0FF",
+              border: `1.5px solid ${darkMode ? "#444" : "#C4B5FD"}`,
+            }}
           >
             <p className="text-xs font-bold" style={{ color: "#7A5AF8" }}>
               Find someone by their @username 💜
@@ -362,9 +369,9 @@ export default function ChatList({
                   placeholder="username"
                   className="w-full pl-7 pr-3 py-2 rounded-full text-sm outline-none"
                   style={{
-                    background: "white",
-                    border: "1.5px solid #C4B5FD",
-                    color: "#1E1E1E",
+                    background: darkMode ? "#1a1a1a" : "white",
+                    border: `1.5px solid ${darkMode ? "#444" : "#C4B5FD"}`,
+                    color: darkMode ? "#f5f5f5" : "#1E1E1E",
                   }}
                   onKeyDown={(e) => e.key === "Enter" && handleFindUser()}
                   data-ocid="chatlist.search_input"
@@ -391,7 +398,10 @@ export default function ChatList({
             {foundUser && (
               <div
                 className="flex items-center gap-3 p-3 rounded-xl"
-                style={{ background: "white", border: "1.5px solid #C4B5FD" }}
+                style={{
+                  background: darkMode ? "#222" : "white",
+                  border: `1.5px solid ${darkMode ? "#444" : "#C4B5FD"}`,
+                }}
               >
                 <div
                   className="w-10 h-10 rounded-full flex items-center justify-center text-lg flex-shrink-0"
@@ -411,7 +421,10 @@ export default function ChatList({
                   )}
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="font-bold text-sm" style={{ color: "#1E1E1E" }}>
+                  <p
+                    className="font-bold text-sm"
+                    style={{ color: darkMode ? "#f5f5f5" : "#1E1E1E" }}
+                  >
                     {foundUser.name}
                   </p>
                   <p className="text-xs" style={{ color: "#7A5AF8" }}>
@@ -485,9 +498,9 @@ export default function ChatList({
             placeholder="Search chats..."
             className="w-full pl-9 pr-4 py-2.5 rounded-full text-sm outline-none"
             style={{
-              background: "#FFF5F8",
-              border: "1.5px solid #FFD1DC",
-              color: "#1E1E1E",
+              background: darkMode ? "#1a1a1a" : "#FFF5F8",
+              border: `1.5px solid ${darkMode ? "#333" : "#FFD1DC"}`,
+              color: darkMode ? "#f5f5f5" : "#1E1E1E",
             }}
             data-ocid="chatlist.search_input"
           />
@@ -502,7 +515,10 @@ export default function ChatList({
             data-ocid="chatlist.empty_state"
           >
             <span className="text-4xl mb-3">💬</span>
-            <p className="text-sm font-semibold" style={{ color: "#7A6E6E" }}>
+            <p
+              className="text-sm font-semibold"
+              style={{ color: darkMode ? "#aaa" : "#7A6E6E" }}
+            >
               No chats yet — find a friend by ID! 🌸
             </p>
           </div>
@@ -529,8 +545,16 @@ export default function ChatList({
               data-ocid={`chatlist.item.${i + 1}`}
               className="flex items-center gap-3 px-4 py-3 rounded-2xl transition-all hover:opacity-85 text-left"
               style={{
-                background: isAdmin ? "#FFF0F8" : "#FFFAF5",
-                border: isAdmin ? "1.5px solid #FF8C9F" : "1.5px solid #FFD1DC",
+                background: isAdmin
+                  ? darkMode
+                    ? "#2a1520"
+                    : "#FFF0F8"
+                  : darkMode
+                    ? "#1a1a1a"
+                    : "#FFFAF5",
+                border: isAdmin
+                  ? "1.5px solid #FF8C9F"
+                  : `1.5px solid ${darkMode ? "#333" : "#FFD1DC"}`,
               }}
             >
               <div className="relative flex-shrink-0">
@@ -567,7 +591,7 @@ export default function ChatList({
                   <div className="flex items-baseline gap-1.5 min-w-0 flex-1">
                     <span
                       className="font-bold text-sm truncate"
-                      style={{ color: "#1E1E1E" }}
+                      style={{ color: darkMode ? "#f5f5f5" : "#1E1E1E" }}
                     >
                       {conv.otherUserName}
                     </span>
@@ -613,7 +637,7 @@ export default function ChatList({
                 {/* Last message only on second line */}
                 <p
                   className="text-xs truncate mt-0.5"
-                  style={{ color: "#7A6E6E" }}
+                  style={{ color: darkMode ? "#888" : "#7A6E6E" }}
                 >
                   {conv.lastMessage || "Say hello! 👋"}
                 </p>
@@ -623,7 +647,7 @@ export default function ChatList({
         })}
       </div>
 
-      <BottomNav active="chats" onNav={onNav} />
+      <BottomNav active="chats" onNav={onNav} darkMode={darkMode} />
     </div>
   );
 }

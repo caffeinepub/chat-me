@@ -1,40 +1,30 @@
 # Chat Me
 
 ## Current State
-
-User search by @username works ("Find by ID" button). But when user A clicks "Chat" on user B's result:
-- `onOpenChat("DM: @username")` is called — this string becomes BOTH the display name AND the backend `chatId`
-- User B has NO WAY to open the same chat because they don't know user A's chatId string
-- `ChatList.tsx` shows hardcoded fake chats (Art Buddies, Cute Pets Corner, etc.) — no real conversations
-- No backend method to list all conversations for a user
+App is a WhatsApp-inspired messaging app with pastel/cute aesthetic. Settings page has wallpaper, home theme (17 options), font size, and notification toggles. There is no global dark mode toggle. The app uses light pastel colors throughout all views (backgrounds, cards, navbars, chat bubbles, etc.).
 
 ## Requested Changes (Diff)
 
 ### Add
-- Backend: `ConversationInfo` type with chatId, otherUser info, lastMessage, lastTimestamp
-- Backend: `parseNat` helper for parsing UserId from text
-- Backend: `getOtherUserIdFromChatId(chatId, myId)` helper — parses `dm_A_B` format
-- Backend: `getUserConversations(token)` — returns all DM conversations for the logged-in user
-- Frontend: `activeChatId` state in App.tsx separate from `activeChatName`
-- Frontend: Real conversation list in ChatList loaded from backend (polled every 5s)
+- Global Dark Mode toggle in Settings page (under Chats section)
+- When dark mode is ON: entire app switches to black/dark background with proper readable text (white/light)
+- Dark mode state saved in localStorage (`chatme_dark_mode`) so it persists across sessions
+- All screens affected: home, chatList, activeChat, profile, settings, admin, login, splash
 
 ### Modify
-- App.tsx: `openChat(chatId, displayName)` — now takes both chatId (for backend) and displayName (for UI)
-- App.tsx: Pass `chatId` prop to `ActiveChat`
-- ChatList.tsx: `handleStartChat(user)` — compute `dm_${min(myId, theirId)}_${max(myId, theirId)}` as chatId
-- ChatList.tsx: `onOpenChat` interface accepts `(chatId, displayName)` tuple
-- ActiveChat.tsx: Accept `chatId` prop and use it for all backend calls; `chatName` is display-only
-- backend.d.ts: Add `ConversationInfo` interface and `getUserConversations` method
-- backend.did.js: Add `ConversationInfo` IDL type and `getUserConversations` to service
+- App.tsx: add `darkMode` state, read from localStorage, pass as prop down to all views
+- SettingsView.tsx: add Dark Mode switch row in Chats section
+- All view components: accept `darkMode` prop and apply dark backgrounds/text colors conditionally
+- index.css: add `.dark` class with dark CSS variables
 
 ### Remove
-- Hardcoded `chats` array in ChatList.tsx
+- Nothing removed
 
 ## Implementation Plan
-
-1. Update `main.mo` with `ConversationInfo` type, helper functions, and `getUserConversations` method
-2. Update `backend.d.ts` with `ConversationInfo` type and method signature
-3. Update `backend.did.js` with IDL definition
-4. Update `App.tsx` to separate chatId from displayName
-5. Update `ChatList.tsx` to load real conversations and generate proper chatId
-6. Update `ActiveChat.tsx` to accept `chatId` prop and use it for backend calls
+1. Add `darkMode: boolean` state to App.tsx, initialized from localStorage
+2. Apply `dark` class to root `<div>` in App.tsx when darkMode is true
+3. Update `index.css` with dark mode CSS variable overrides under `.dark` class
+4. Pass `darkMode` + `onDarkModeChange` props to SettingsView
+5. Add Dark Mode toggle switch in SettingsView Chats section
+6. Update all major components (ChatList, ActiveChat, ProfileView, TopNav, BottomNav, LoginScreen, CentralDashboard, LeftSidebar, AdminView, ChatPanel, Footer) to use `darkMode` prop for conditional styling
+7. Validate build

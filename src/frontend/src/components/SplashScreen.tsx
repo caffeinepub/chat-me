@@ -1,10 +1,15 @@
-export default function SplashScreen() {
+interface SplashScreenProps {
+  darkMode?: boolean;
+}
+
+export default function SplashScreen({ darkMode = false }: SplashScreenProps) {
   return (
     <div
       className="fixed inset-0 flex flex-col items-center justify-center"
       style={{
-        background:
-          "linear-gradient(135deg, #FFE6DB 0%, #E8DFFF 50%, #FFD1DC 100%)",
+        background: darkMode
+          ? "#0d0d0d"
+          : "linear-gradient(135deg, #FFE6DB 0%, #E8DFFF 50%, #FFD1DC 100%)",
         zIndex: 9999,
       }}
     >
@@ -72,7 +77,10 @@ export default function SplashScreen() {
       </h1>
       <p
         className="splash-sub text-base font-semibold"
-        style={{ color: "#7A6E6E", fontFamily: "'Quicksand', sans-serif" }}
+        style={{
+          color: darkMode ? "#aaa" : "#7A6E6E",
+          fontFamily: "'Quicksand', sans-serif",
+        }}
       >
         cute · lovely · friendly 🌸
       </p>

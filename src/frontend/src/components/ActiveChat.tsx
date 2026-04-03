@@ -157,6 +157,7 @@ interface ActiveChatProps {
   currentUser: PublicUser | null;
   onBack: () => void;
   onNav: (v: View) => void;
+  darkMode?: boolean;
 }
 
 export default function ActiveChat({
@@ -166,6 +167,7 @@ export default function ActiveChat({
   currentUser,
   onBack,
   onNav,
+  darkMode = false,
 }: ActiveChatProps) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
@@ -500,7 +502,7 @@ export default function ActiveChat({
     <div
       className="min-h-screen flex flex-col"
       style={{
-        background: "#F8F0FF",
+        background: darkMode ? "#0d0d0d" : "#F8F0FF",
         fontFamily: "'Quicksand', sans-serif",
         paddingBottom: "80px",
       }}
@@ -523,8 +525,10 @@ export default function ActiveChat({
       <div
         className="flex items-center gap-3 px-4 py-3 sticky top-0"
         style={{
-          background: "linear-gradient(135deg, #FFF0F8 0%, #F5EEFF 100%)",
-          borderBottom: "1.5px solid #FFD1DC",
+          background: darkMode
+            ? "#111"
+            : "linear-gradient(135deg, #FFF0F8 0%, #F5EEFF 100%)",
+          borderBottom: `1.5px solid ${darkMode ? "#333" : "#FFD1DC"}`,
           zIndex: 50,
         }}
       >
@@ -533,7 +537,10 @@ export default function ActiveChat({
           onClick={onBack}
           data-ocid="activechat.back.button"
           className="w-9 h-9 rounded-full flex items-center justify-center text-xl font-bold transition-all hover:opacity-70"
-          style={{ color: "#FF8C9F", background: "#FFF0F4" }}
+          style={{
+            color: "#FF8C9F",
+            background: darkMode ? "#222" : "#FFF0F4",
+          }}
         >
           ←
         </button>
@@ -546,7 +553,10 @@ export default function ActiveChat({
           {chatEmoji[chatName] ?? "💬"}
         </div>
         <div className="flex-1">
-          <p className="font-bold text-sm" style={{ color: "#1E1E1E" }}>
+          <p
+            className="font-bold text-sm"
+            style={{ color: darkMode ? "#f5f5f5" : "#1E1E1E" }}
+          >
             {chatName}
           </p>
           <p
@@ -567,7 +577,11 @@ export default function ActiveChat({
             className="w-9 h-9 rounded-full flex items-center justify-center font-bold text-lg hover:opacity-70 transition-all"
             style={{
               color: "#7A6E6E",
-              background: showDropdown ? "#FFD1DC" : "#F5F0FF",
+              background: showDropdown
+                ? "#FFD1DC"
+                : darkMode
+                  ? "#222"
+                  : "#F5F0FF",
             }}
           >
             ⋯
@@ -576,8 +590,8 @@ export default function ActiveChat({
             <div
               className="absolute right-0 top-11 rounded-2xl overflow-hidden shadow-xl"
               style={{
-                background: "#FFF5FB",
-                border: "1.5px solid #FFD1DC",
+                background: darkMode ? "#1a1a1a" : "#FFF5FB",
+                border: `1.5px solid ${darkMode ? "#333" : "#FFD1DC"}`,
                 minWidth: "180px",
                 zIndex: 100,
               }}
@@ -616,7 +630,7 @@ export default function ActiveChat({
         <div
           className="flex items-center justify-between gap-3 px-4 py-3"
           style={{
-            background: "#FFF0F0",
+            background: darkMode ? "#1a1a1a" : "#FFF0F0",
             borderBottom: "1.5px solid #FFAAAA",
           }}
           data-ocid="activechat.error_state"
@@ -644,7 +658,7 @@ export default function ActiveChat({
         <div
           className="flex items-center justify-between gap-3 px-4 py-2"
           style={{
-            background: "#FFF5F0",
+            background: darkMode ? "#2a1a1a" : "#FFF5F0",
             borderBottom: "1.5px solid #FFCCAA",
           }}
           data-ocid="activechat.error_state"
@@ -735,7 +749,9 @@ export default function ActiveChat({
                   background:
                     msg.side === "right"
                       ? currentBubble.sent
-                      : currentBubble.received,
+                      : darkMode
+                        ? "#2a2a2a"
+                        : currentBubble.received,
                   color: "#1E1E1E",
                   borderRadius:
                     msg.side === "right"
@@ -793,8 +809,8 @@ export default function ActiveChat({
           ref={mediaPickerRef}
           className="mx-4 mb-2"
           style={{
-            background: "#FFFAF5",
-            border: "2px solid #FFD1DC",
+            background: darkMode ? "#1a1a1a" : "#FFFAF5",
+            border: `2px solid ${darkMode ? "#333" : "#FFD1DC"}`,
             borderRadius: "24px",
             padding: "16px",
             zIndex: 20,
@@ -809,7 +825,12 @@ export default function ActiveChat({
                 onClick={() => setMediaTab(tab)}
                 className="flex-1 py-1.5 rounded-full text-xs font-bold transition-all"
                 style={{
-                  background: mediaTab === tab ? "#FF8C9F" : "#FFF0F4",
+                  background:
+                    mediaTab === tab
+                      ? "#FF8C9F"
+                      : darkMode
+                        ? "#222"
+                        : "#FFF0F4",
                   color: mediaTab === tab ? "#fff" : "#FF8C9F",
                 }}
               >
@@ -828,7 +849,7 @@ export default function ActiveChat({
                 onClick={() => fileInputRef.current?.click()}
                 className="w-full py-3 rounded-xl text-sm font-bold hover:opacity-85 transition-all"
                 style={{
-                  background: "#FFF0F4",
+                  background: darkMode ? "#222" : "#FFF0F4",
                   color: "#FF8C9F",
                   border: "1.5px dashed #FFD1DC",
                 }}
@@ -853,7 +874,7 @@ export default function ActiveChat({
                   type="button"
                   onClick={() => handleStickerSend(gif)}
                   className="flex items-center justify-center h-12 rounded-xl hover:scale-125 transition-transform text-3xl"
-                  style={{ background: "#FFF0F4" }}
+                  style={{ background: darkMode ? "#222" : "#FFF0F4" }}
                 >
                   {gif}
                 </button>
@@ -868,7 +889,7 @@ export default function ActiveChat({
                   type="button"
                   onClick={() => handleStickerSend(sticker)}
                   className="flex items-center justify-center h-12 rounded-xl hover:scale-125 transition-transform text-2xl"
-                  style={{ background: "#FFF0F4" }}
+                  style={{ background: darkMode ? "#222" : "#FFF0F4" }}
                 >
                   {sticker}
                 </button>
@@ -900,7 +921,9 @@ export default function ActiveChat({
       <div
         className="flex items-center gap-2 px-4 py-3 sticky bottom-[80px]"
         style={{
-          background: "rgba(255,250,245,0.9)",
+          background: darkMode
+            ? "rgba(20,20,20,0.95)"
+            : "rgba(255,250,245,0.9)",
           backdropFilter: "blur(2px)",
           borderTop: "1.5px solid #FFD1DC",
         }}
@@ -913,7 +936,11 @@ export default function ActiveChat({
           }}
           className="w-10 h-10 rounded-full flex items-center justify-center hover:opacity-70 transition-all flex-shrink-0"
           style={{
-            background: showMediaPicker ? "#FFD1DC" : "#FFF0F4",
+            background: showMediaPicker
+              ? "#FFD1DC"
+              : darkMode
+                ? "#222"
+                : "#FFF0F4",
             color: "#FF8C9F",
           }}
           data-ocid="activechat.open_modal_button"
@@ -951,8 +978,8 @@ export default function ActiveChat({
           placeholder="Type a message..."
           className="flex-1 px-4 py-2.5 rounded-full text-sm outline-none"
           style={{
-            background: "#FFF5F8",
-            border: "1.5px solid #FFD1DC",
+            background: darkMode ? "#1a1a1a" : "#FFF5F8",
+            border: `1.5px solid ${darkMode ? "#333" : "#FFD1DC"}`,
             color: "#1E1E1E",
           }}
           data-ocid="activechat.input"
@@ -990,7 +1017,7 @@ export default function ActiveChat({
         </button>
       </div>
 
-      <BottomNav active="chat" onNav={onNav} />
+      <BottomNav active="chat" onNav={onNav} darkMode={darkMode} />
 
       {/* Wallpaper Picker Modal */}
       {showWallpaperPicker && (

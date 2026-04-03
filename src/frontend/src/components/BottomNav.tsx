@@ -3,9 +3,14 @@ import type { View } from "../App";
 interface BottomNavProps {
   active: "home" | "chats" | "chat" | "account";
   onNav: (v: View) => void;
+  darkMode?: boolean;
 }
 
-export default function BottomNav({ active, onNav }: BottomNavProps) {
+export default function BottomNav({
+  active,
+  onNav,
+  darkMode = false,
+}: BottomNavProps) {
   const tabs = [
     {
       key: "home" as const,
@@ -100,8 +105,8 @@ export default function BottomNav({ active, onNav }: BottomNavProps) {
     <div
       className="fixed bottom-0 left-0 right-0 flex items-center justify-around px-4 py-3"
       style={{
-        background: "#FFFAF5",
-        borderTop: "1.5px solid #FFD1DC",
+        background: darkMode ? "#111" : "#FFFAF5",
+        borderTop: `1.5px solid ${darkMode ? "#333" : "#FFD1DC"}`,
         zIndex: 200,
         boxShadow: "0 -4px 20px rgba(255,140,159,0.1)",
       }}
@@ -114,8 +119,14 @@ export default function BottomNav({ active, onNav }: BottomNavProps) {
           data-ocid={`bottomnav.${tab.key}.link`}
           className="flex flex-col items-center gap-0.5 px-4 py-1.5 rounded-full transition-all"
           style={{
-            background: active === tab.key ? "#FFD1DC" : "transparent",
-            color: active === tab.key ? "#FF8C9F" : "#7A6E6E",
+            background:
+              active === tab.key
+                ? darkMode
+                  ? "#2a2a2a"
+                  : "#FFD1DC"
+                : "transparent",
+            color:
+              active === tab.key ? "#FF8C9F" : darkMode ? "#aaa" : "#7A6E6E",
           }}
         >
           {tab.icon}

@@ -15,6 +15,7 @@ interface ProfileViewProps {
   onNav: (v: View) => void;
   onLogout: () => void;
   onUserUpdate: (user: PublicUser) => void;
+  darkMode?: boolean;
 }
 
 export default function ProfileView({
@@ -26,6 +27,7 @@ export default function ProfileView({
   onNav,
   onLogout,
   onUserUpdate,
+  darkMode = false,
 }: ProfileViewProps) {
   const [name, setName] = useState(currentUser?.name ?? "🌸");
   const [about, setAbout] = useState(
@@ -248,14 +250,20 @@ export default function ProfileView({
     >
       <div
         className="flex items-center gap-3 px-4 py-3"
-        style={{ background: "#FFFAF5", borderBottom: "1.5px solid #FFD1DC" }}
+        style={{
+          background: darkMode ? "#111" : "#FFFAF5",
+          borderBottom: `1.5px solid ${darkMode ? "#333" : "#FFD1DC"}`,
+        }}
       >
         <button
           type="button"
           onClick={onBack}
           data-ocid="profile.back.button"
           className="w-9 h-9 rounded-full flex items-center justify-center font-bold text-xl hover:opacity-70 transition-all"
-          style={{ background: "#FFF0F4", color: "#FF8C9F" }}
+          style={{
+            background: darkMode ? "#222" : "#FFF0F4",
+            color: "#FF8C9F",
+          }}
         >
           ←
         </button>
@@ -352,7 +360,10 @@ export default function ProfileView({
               Your ID: @
               {currentUser.username || `user${Number(currentUser.id)}`}
             </div>
-            <p className="text-xs" style={{ color: "#7A6E6E" }}>
+            <p
+              className="text-xs"
+              style={{ color: darkMode ? "#888" : "#7A6E6E" }}
+            >
               Share this ID with friends to chat 💬
             </p>
           </div>
@@ -363,7 +374,7 @@ export default function ProfileView({
           className="w-full max-w-md rounded-2xl p-5 flex flex-col gap-4"
           style={{
             background: "#FFFAF5",
-            border: "1.5px solid #FFD1DC",
+            border: `1.5px solid ${darkMode ? "#333" : "#FFD1DC"}`,
             boxShadow: "0 4px 20px rgba(255,140,159,0.1)",
           }}
         >
@@ -398,7 +409,7 @@ export default function ProfileView({
                       style={{
                         background: "#F5F0FF",
                         border: "1.5px solid #C4B5FD",
-                        color: "#1E1E1E",
+                        color: darkMode ? "#f5f5f5" : "#1E1E1E",
                       }}
                       placeholder="your_username"
                       maxLength={20}
@@ -429,7 +440,10 @@ export default function ProfileView({
                       setTempUsername(currentUser?.username ?? "");
                     }}
                     className="px-3 py-2 rounded-full text-xs font-bold hover:opacity-85 transition-all"
-                    style={{ background: "#F5F0FF", color: "#7A6E6E" }}
+                    style={{
+                      background: "#F5F0FF",
+                      color: darkMode ? "#888" : "#7A6E6E",
+                    }}
                   >
                     ✕
                   </button>
@@ -484,9 +498,9 @@ export default function ProfileView({
                   onChange={(e) => setTempName(e.target.value)}
                   className="flex-1 px-3 py-2 rounded-full text-sm outline-none"
                   style={{
-                    background: "#FFF5F8",
-                    border: "1.5px solid #FFD1DC",
-                    color: "#1E1E1E",
+                    background: darkMode ? "#1a1a1a" : "#FFF5F8",
+                    border: `1.5px solid ${darkMode ? "#333" : "#FFD1DC"}`,
+                    color: darkMode ? "#f5f5f5" : "#1E1E1E",
                   }}
                   data-ocid="profile.input"
                 />
@@ -507,7 +521,10 @@ export default function ProfileView({
                     setEditingName(false);
                   }}
                   className="px-3 py-2 rounded-full text-xs font-bold hover:opacity-85 transition-all"
-                  style={{ background: "#F5F0FF", color: "#7A6E6E" }}
+                  style={{
+                    background: "#F5F0FF",
+                    color: darkMode ? "#888" : "#7A6E6E",
+                  }}
                   data-ocid="profile.cancel_button"
                 >
                   ✕
@@ -517,7 +534,7 @@ export default function ProfileView({
               <div className="flex items-center justify-between mt-1">
                 <span
                   className="text-base font-semibold"
-                  style={{ color: "#1E1E1E" }}
+                  style={{ color: darkMode ? "#f5f5f5" : "#1E1E1E" }}
                 >
                   {name}
                 </span>
@@ -545,7 +562,7 @@ export default function ProfileView({
             </Label>
             <p
               className="text-sm font-semibold mt-1"
-              style={{ color: "#5A4E4E" }}
+              style={{ color: darkMode ? "#aaa" : "#5A4E4E" }}
             >
               {currentUser?.phone ?? "+-- --- -----"}
             </p>
@@ -566,9 +583,9 @@ export default function ProfileView({
                   onChange={(e) => setTempAbout(e.target.value)}
                   className="flex-1 px-3 py-2 rounded-full text-sm outline-none"
                   style={{
-                    background: "#FFF5F8",
-                    border: "1.5px solid #FFD1DC",
-                    color: "#1E1E1E",
+                    background: darkMode ? "#1a1a1a" : "#FFF5F8",
+                    border: `1.5px solid ${darkMode ? "#333" : "#FFD1DC"}`,
+                    color: darkMode ? "#f5f5f5" : "#1E1E1E",
                   }}
                   data-ocid="profile.textarea"
                 />
@@ -589,7 +606,10 @@ export default function ProfileView({
                     setEditingAbout(false);
                   }}
                   className="px-3 py-2 rounded-full text-xs font-bold hover:opacity-85 transition-all"
-                  style={{ background: "#F5F0FF", color: "#7A6E6E" }}
+                  style={{
+                    background: "#F5F0FF",
+                    color: darkMode ? "#888" : "#7A6E6E",
+                  }}
                   data-ocid="profile.about_cancel_button"
                 >
                   ✕
@@ -597,7 +617,10 @@ export default function ProfileView({
               </div>
             ) : (
               <div className="flex items-center justify-between mt-1">
-                <span className="text-sm" style={{ color: "#5A4E4E" }}>
+                <span
+                  className="text-sm"
+                  style={{ color: darkMode ? "#aaa" : "#5A4E4E" }}
+                >
                   {about}
                 </span>
                 <button
@@ -625,13 +648,16 @@ export default function ProfileView({
             boxShadow: "0 4px 20px rgba(200,160,255,0.1)",
           }}
         >
-          <h2 className="font-bold text-base" style={{ color: "#1E1E1E" }}>
+          <h2
+            className="font-bold text-base"
+            style={{ color: darkMode ? "#f5f5f5" : "#1E1E1E" }}
+          >
             🔒 Privacy
           </h2>
           <div className="flex items-center justify-between">
             <Label
               className="text-sm font-semibold"
-              style={{ color: "#5A4E4E" }}
+              style={{ color: darkMode ? "#aaa" : "#5A4E4E" }}
             >
               Last Seen
             </Label>
@@ -644,7 +670,7 @@ export default function ProfileView({
           <div className="flex items-center justify-between">
             <Label
               className="text-sm font-semibold"
-              style={{ color: "#5A4E4E" }}
+              style={{ color: darkMode ? "#aaa" : "#5A4E4E" }}
             >
               Profile Photo Visibility
             </Label>
@@ -657,7 +683,7 @@ export default function ProfileView({
           <div className="flex items-center justify-between">
             <Label
               className="text-sm font-semibold"
-              style={{ color: "#5A4E4E" }}
+              style={{ color: darkMode ? "#aaa" : "#5A4E4E" }}
             >
               Read Receipts
             </Label>
@@ -692,9 +718,15 @@ export default function ProfileView({
           onClick={() => onNav("settings")}
           data-ocid="profile.settings.button"
           className="w-full max-w-md flex items-center justify-between px-5 py-4 rounded-2xl transition-all hover:opacity-85"
-          style={{ background: "#FFFAF5", border: "1.5px solid #FFD1DC" }}
+          style={{
+            background: darkMode ? "#1a1a1a" : "#FFFAF5",
+            border: `1.5px solid ${darkMode ? "#333" : "#FFD1DC"}`,
+          }}
         >
-          <span className="font-semibold text-sm" style={{ color: "#5A4E4E" }}>
+          <span
+            className="font-semibold text-sm"
+            style={{ color: darkMode ? "#aaa" : "#5A4E4E" }}
+          >
             ⚙️ Settings
           </span>
           <span style={{ color: "#FF8C9F" }}>›</span>
@@ -705,7 +737,10 @@ export default function ProfileView({
           onClick={onLogout}
           data-ocid="profile.logout_bottom.button"
           className="w-full max-w-md flex items-center justify-center gap-2 px-5 py-4 rounded-2xl transition-all hover:opacity-85"
-          style={{ background: "#FFF0F4", border: "1.5px solid #FFD1DC" }}
+          style={{
+            background: "#FFF0F4",
+            border: `1.5px solid ${darkMode ? "#333" : "#FFD1DC"}`,
+          }}
         >
           <span className="font-semibold text-sm" style={{ color: "#C0304A" }}>
             👋 Logout
@@ -713,7 +748,7 @@ export default function ProfileView({
         </button>
       </div>
 
-      <BottomNav active="account" onNav={onNav} />
+      <BottomNav active="account" onNav={onNav} darkMode={darkMode} />
     </div>
   );
 }

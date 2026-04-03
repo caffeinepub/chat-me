@@ -142,6 +142,8 @@ interface SettingsViewProps {
   onNav: (v: View) => void;
   homeTheme: string;
   onHomeThemeChange: (theme: string) => void;
+  darkMode?: boolean;
+  onDarkModeChange?: (val: boolean) => void;
 }
 
 export default function SettingsView({
@@ -149,6 +151,8 @@ export default function SettingsView({
   onNav,
   homeTheme,
   onHomeThemeChange,
+  darkMode = false,
+  onDarkModeChange,
 }: SettingsViewProps) {
   const [subScreen, setSubScreen] = useState<SubScreen>(null);
   const [msgNotif, setMsgNotif] = useState(true);
@@ -164,10 +168,21 @@ export default function SettingsView({
   const [profilePhoto, setProfilePhoto] = useState(true);
   const [readReceipts, setReadReceipts] = useState(true);
 
+  const dm = darkMode;
+  const bg = dm ? "#0d0d0d" : SETTINGS_BG;
+  const cardBg = dm ? "#1a1a1a" : "#FFFAF5";
+  const borderColor = dm ? "#333" : "#FFD1DC";
+  const textPrimary = dm ? "#f5f5f5" : "#1E1E1E";
+  const textSecondary = dm ? "#aaa" : "#5A4E4E";
+  const rowBorder = dm ? "1px solid #333" : "1px solid #FFE6DB";
+  const headerBg = dm ? "#111" : "#FFFAF5";
+  const headerBorder = dm ? "#333" : "#FFD1DC";
+  const backBtnBg = dm ? "#222" : "#FFF0F4";
+
   const sectionCard = (children: React.ReactNode) => (
     <div
       className="w-full max-w-md rounded-2xl overflow-hidden"
-      style={{ background: "#FFFAF5", border: "1.5px solid #FFD1DC" }}
+      style={{ background: cardBg, border: `1.5px solid ${borderColor}` }}
     >
       {children}
     </div>
@@ -185,12 +200,12 @@ export default function SettingsView({
       onClick={onClick}
       data-ocid={ocid}
       className="w-full flex items-center gap-3 px-5 py-4 text-left hover:opacity-80 transition-all"
-      style={{ borderBottom: last ? "none" : "1px solid #FFE6DB" }}
+      style={{ borderBottom: last ? "none" : rowBorder }}
     >
       <span className="text-xl">{icon}</span>
       <span
         className="flex-1 text-sm font-semibold"
-        style={{ color: "#1E1E1E" }}
+        style={{ color: textPrimary }}
       >
         {label}
       </span>
@@ -201,14 +216,17 @@ export default function SettingsView({
   const backHeader = (title: string) => (
     <div
       className="flex items-center gap-3 px-4 py-3"
-      style={{ background: "#FFFAF5", borderBottom: "1.5px solid #FFD1DC" }}
+      style={{
+        background: headerBg,
+        borderBottom: `1.5px solid ${headerBorder}`,
+      }}
     >
       <button
         type="button"
         onClick={() => setSubScreen(null)}
         data-ocid="settings.back.button"
         className="w-9 h-9 rounded-full flex items-center justify-center font-bold text-xl hover:opacity-70 transition-all"
-        style={{ background: "#FFF0F4", color: "#FF8C9F" }}
+        style={{ background: backBtnBg, color: "#FF8C9F" }}
       >
         ←
       </button>
@@ -223,7 +241,7 @@ export default function SettingsView({
       <div
         className="min-h-screen flex flex-col"
         style={{
-          background: SETTINGS_BG,
+          background: bg,
           fontFamily: "'Quicksand', sans-serif",
           paddingBottom: "80px",
         }}
@@ -234,11 +252,11 @@ export default function SettingsView({
             <>
               <div
                 className="flex items-center justify-between px-5 py-4"
-                style={{ borderBottom: "1px solid #FFE6DB" }}
+                style={{ borderBottom: rowBorder }}
               >
                 <Label
                   className="text-sm font-semibold"
-                  style={{ color: "#5A4E4E" }}
+                  style={{ color: textSecondary }}
                 >
                   Last Seen
                 </Label>
@@ -250,11 +268,11 @@ export default function SettingsView({
               </div>
               <div
                 className="flex items-center justify-between px-5 py-4"
-                style={{ borderBottom: "1px solid #FFE6DB" }}
+                style={{ borderBottom: rowBorder }}
               >
                 <Label
                   className="text-sm font-semibold"
-                  style={{ color: "#5A4E4E" }}
+                  style={{ color: textSecondary }}
                 >
                   Profile Photo
                 </Label>
@@ -267,7 +285,7 @@ export default function SettingsView({
               <div className="flex items-center justify-between px-5 py-4">
                 <Label
                   className="text-sm font-semibold"
-                  style={{ color: "#5A4E4E" }}
+                  style={{ color: textSecondary }}
                 >
                   Read Receipts
                 </Label>
@@ -280,7 +298,7 @@ export default function SettingsView({
             </>,
           )}
         </div>
-        <BottomNav active="account" onNav={onNav} />
+        <BottomNav active="account" onNav={onNav} darkMode={darkMode} />
       </div>
     );
   }
@@ -290,7 +308,7 @@ export default function SettingsView({
       <div
         className="min-h-screen flex flex-col"
         style={{
-          background: SETTINGS_BG,
+          background: bg,
           fontFamily: "'Quicksand', sans-serif",
           paddingBottom: "80px",
         }}
@@ -299,12 +317,12 @@ export default function SettingsView({
         <div className="flex flex-col items-center px-5 py-8">
           <div
             className="w-full max-w-md rounded-2xl p-6 text-center"
-            style={{ background: "#FFFAF5", border: "1.5px solid #E8DFFF" }}
+            style={{ background: cardBg, border: `1.5px solid ${borderColor}` }}
           >
             <span className="text-5xl">🔐</span>
             <p
               className="mt-4 font-semibold text-sm"
-              style={{ color: "#5A4E4E" }}
+              style={{ color: textSecondary }}
             >
               Two-step verification keeps your account secure with a PIN when
               registering on a new device.
@@ -319,7 +337,7 @@ export default function SettingsView({
             </button>
           </div>
         </div>
-        <BottomNav active="account" onNav={onNav} />
+        <BottomNav active="account" onNav={onNav} darkMode={darkMode} />
       </div>
     );
   }
@@ -329,7 +347,7 @@ export default function SettingsView({
       <div
         className="min-h-screen flex flex-col"
         style={{
-          background: SETTINGS_BG,
+          background: bg,
           fontFamily: "'Quicksand', sans-serif",
           paddingBottom: "80px",
         }}
@@ -338,9 +356,9 @@ export default function SettingsView({
         <div className="flex flex-col items-center px-5 py-8 gap-4">
           <div
             className="w-full max-w-md rounded-2xl p-6 flex flex-col gap-4"
-            style={{ background: "#FFFAF5", border: "1.5px solid #FFD1DC" }}
+            style={{ background: cardBg, border: `1.5px solid ${borderColor}` }}
           >
-            <p className="text-sm" style={{ color: "#5A4E4E" }}>
+            <p className="text-sm" style={{ color: textSecondary }}>
               Enter your new phone number to migrate your account.
             </p>
             <input
@@ -352,7 +370,7 @@ export default function SettingsView({
               style={{
                 background: "#FFF5F8",
                 border: "1.5px solid #FFD1DC",
-                color: "#1E1E1E",
+                color: textPrimary,
               }}
               data-ocid="settings.change_number.input"
             />
@@ -366,7 +384,7 @@ export default function SettingsView({
             </button>
           </div>
         </div>
-        <BottomNav active="account" onNav={onNav} />
+        <BottomNav active="account" onNav={onNav} darkMode={darkMode} />
       </div>
     );
   }
@@ -376,7 +394,7 @@ export default function SettingsView({
       <div
         className="min-h-screen flex flex-col"
         style={{
-          background: SETTINGS_BG,
+          background: bg,
           fontFamily: "'Quicksand', sans-serif",
           paddingBottom: "80px",
         }}
@@ -415,7 +433,7 @@ export default function SettingsView({
             ))}
           </div>
         </div>
-        <BottomNav active="account" onNav={onNav} />
+        <BottomNav active="account" onNav={onNav} darkMode={darkMode} />
       </div>
     );
   }
@@ -425,7 +443,7 @@ export default function SettingsView({
       <div
         className="min-h-screen flex flex-col"
         style={{
-          background: SETTINGS_BG,
+          background: bg,
           fontFamily: "'Quicksand', sans-serif",
           paddingBottom: "80px",
         }}
@@ -434,7 +452,7 @@ export default function SettingsView({
         <div className="flex flex-col items-center px-5 py-6 gap-4">
           <p
             className="text-xs font-semibold w-full max-w-md"
-            style={{ color: "#5A4E4E" }}
+            style={{ color: textSecondary }}
           >
             Choose a background theme for your home screen
           </p>
@@ -469,7 +487,7 @@ export default function SettingsView({
             ))}
           </div>
         </div>
-        <BottomNav active="account" onNav={onNav} />
+        <BottomNav active="account" onNav={onNav} darkMode={darkMode} />
       </div>
     );
   }
@@ -479,7 +497,7 @@ export default function SettingsView({
       <div
         className="min-h-screen flex flex-col"
         style={{
-          background: SETTINGS_BG,
+          background: bg,
           fontFamily: "'Quicksand', sans-serif",
           paddingBottom: "80px",
         }}
@@ -488,13 +506,13 @@ export default function SettingsView({
         <div className="flex flex-col items-center px-5 py-8">
           <div
             className="w-full max-w-md rounded-2xl p-6 text-center"
-            style={{ background: "#FFFAF5", border: "1.5px solid #E8DFFF" }}
+            style={{ background: cardBg, border: `1.5px solid ${borderColor}` }}
           >
             <span className="text-5xl">☁️</span>
-            <p className="mt-3 font-bold" style={{ color: "#1E1E1E" }}>
+            <p className="mt-3 font-bold" style={{ color: textPrimary }}>
               Last Backup
             </p>
-            <p className="mt-1 text-sm" style={{ color: "#5A4E4E" }}>
+            <p className="mt-1 text-sm" style={{ color: textSecondary }}>
               Today at 3:20 PM · 12.4 MB
             </p>
             <button
@@ -507,7 +525,7 @@ export default function SettingsView({
             </button>
           </div>
         </div>
-        <BottomNav active="account" onNav={onNav} />
+        <BottomNav active="account" onNav={onNav} darkMode={darkMode} />
       </div>
     );
   }
@@ -517,7 +535,7 @@ export default function SettingsView({
       <div
         className="min-h-screen flex flex-col"
         style={{
-          background: SETTINGS_BG,
+          background: bg,
           fontFamily: "'Quicksand', sans-serif",
           paddingBottom: "80px",
         }}
@@ -526,12 +544,12 @@ export default function SettingsView({
         <div className="flex flex-col items-center px-5 py-8 gap-6">
           <div
             className="w-full max-w-md rounded-2xl p-6 flex flex-col gap-6"
-            style={{ background: "#FFFAF5", border: "1.5px solid #FFD1DC" }}
+            style={{ background: cardBg, border: `1.5px solid ${borderColor}` }}
           >
             <p
               style={{
                 fontSize: `${fontSize[0]}px`,
-                color: "#1E1E1E",
+                color: textPrimary,
                 fontWeight: 600,
               }}
             >
@@ -560,7 +578,7 @@ export default function SettingsView({
             </p>
           </div>
         </div>
-        <BottomNav active="account" onNav={onNav} />
+        <BottomNav active="account" onNav={onNav} darkMode={darkMode} />
       </div>
     );
   }
@@ -570,7 +588,7 @@ export default function SettingsView({
       <div
         className="min-h-screen flex flex-col"
         style={{
-          background: SETTINGS_BG,
+          background: bg,
           fontFamily: "'Quicksand', sans-serif",
           paddingBottom: "80px",
         }}
@@ -592,7 +610,7 @@ export default function SettingsView({
               >
                 <span
                   className="text-sm font-semibold"
-                  style={{ color: "#1E1E1E" }}
+                  style={{ color: textPrimary }}
                 >
                   {tone}
                 </span>
@@ -603,7 +621,7 @@ export default function SettingsView({
             )),
           )}
         </div>
-        <BottomNav active="account" onNav={onNav} />
+        <BottomNav active="account" onNav={onNav} darkMode={darkMode} />
       </div>
     );
   }
@@ -613,7 +631,7 @@ export default function SettingsView({
     <div
       className="min-h-screen flex flex-col"
       style={{
-        background: SETTINGS_BG,
+        background: bg,
         fontFamily: "'Quicksand', sans-serif",
         paddingBottom: "80px",
       }}
@@ -621,14 +639,17 @@ export default function SettingsView({
       {/* Header */}
       <div
         className="flex items-center gap-3 px-4 py-3"
-        style={{ background: "#FFFAF5", borderBottom: "1.5px solid #FFD1DC" }}
+        style={{
+          background: headerBg,
+          borderBottom: `1.5px solid ${headerBorder}`,
+        }}
       >
         <button
           type="button"
           onClick={onBack}
           data-ocid="settings.back.button"
           className="w-9 h-9 rounded-full flex items-center justify-center font-bold text-xl hover:opacity-70 transition-all"
-          style={{ background: "#FFF0F4", color: "#FF8C9F" }}
+          style={{ background: backBtnBg, color: "#FF8C9F" }}
         >
           ←
         </button>
@@ -704,8 +725,26 @@ export default function SettingsView({
                 "Home Theme",
                 () => setSubScreen("home-theme"),
                 "settings.home_theme.button",
-                true,
               )}
+              <div
+                className="flex items-center justify-between px-5 py-4"
+                style={{ borderBottom: "none" }}
+              >
+                <div className="flex items-center gap-3">
+                  <span className="text-xl">🌙</span>
+                  <Label
+                    className="text-sm font-semibold cursor-pointer"
+                    style={{ color: textPrimary }}
+                  >
+                    Dark Mode
+                  </Label>
+                </div>
+                <Switch
+                  checked={darkMode}
+                  onCheckedChange={onDarkModeChange}
+                  data-ocid="settings.dark_mode.switch"
+                />
+              </div>
             </>,
           )}
         </div>
@@ -722,13 +761,13 @@ export default function SettingsView({
             <>
               <div
                 className="flex items-center justify-between px-5 py-4"
-                style={{ borderBottom: "1px solid #FFE6DB" }}
+                style={{ borderBottom: rowBorder }}
               >
                 <div className="flex items-center gap-3">
                   <span className="text-xl">💬</span>
                   <Label
                     className="text-sm font-semibold cursor-pointer"
-                    style={{ color: "#1E1E1E" }}
+                    style={{ color: textPrimary }}
                   >
                     Message Notifications
                   </Label>
@@ -741,13 +780,13 @@ export default function SettingsView({
               </div>
               <div
                 className="flex items-center justify-between px-5 py-4"
-                style={{ borderBottom: "1px solid #FFE6DB" }}
+                style={{ borderBottom: rowBorder }}
               >
                 <div className="flex items-center gap-3">
                   <span className="text-xl">👥</span>
                   <Label
                     className="text-sm font-semibold cursor-pointer"
-                    style={{ color: "#1E1E1E" }}
+                    style={{ color: textPrimary }}
                   >
                     Group Notifications
                   </Label>
@@ -781,13 +820,13 @@ export default function SettingsView({
             <>
               <div
                 className="flex items-center justify-between px-5 py-4"
-                style={{ borderBottom: "1px solid #FFE6DB" }}
+                style={{ borderBottom: rowBorder }}
               >
                 <div className="flex items-center gap-3">
                   <span className="text-xl">📶</span>
                   <Label
                     className="text-sm font-semibold cursor-pointer"
-                    style={{ color: "#1E1E1E" }}
+                    style={{ color: textPrimary }}
                   >
                     Auto-Download on Wi-Fi
                   </Label>
@@ -800,13 +839,13 @@ export default function SettingsView({
               </div>
               <div
                 className="flex items-center justify-between px-5 py-4"
-                style={{ borderBottom: "1px solid #FFE6DB" }}
+                style={{ borderBottom: rowBorder }}
               >
                 <div className="flex items-center gap-3">
                   <span className="text-xl">📱</span>
                   <Label
                     className="text-sm font-semibold cursor-pointer"
-                    style={{ color: "#1E1E1E" }}
+                    style={{ color: textPrimary }}
                   >
                     Auto-Download on Mobile
                   </Label>
@@ -822,7 +861,7 @@ export default function SettingsView({
                   <span className="text-xl">💾</span>
                   <span
                     className="text-sm font-semibold"
-                    style={{ color: "#1E1E1E" }}
+                    style={{ color: textPrimary }}
                   >
                     Storage Usage
                   </span>
@@ -839,7 +878,7 @@ export default function SettingsView({
         </div>
       </div>
 
-      <BottomNav active="account" onNav={onNav} />
+      <BottomNav active="account" onNav={onNav} darkMode={darkMode} />
     </div>
   );
 }

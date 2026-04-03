@@ -6,9 +6,14 @@ import { KawaiiCamera, KawaiiHeart } from "./KawaiiDoodles";
 interface LeftSidebarProps {
   onOpenChat?: (chatName: string) => void;
   token?: string;
+  darkMode?: boolean;
 }
 
-export default function LeftSidebar({ onOpenChat, token }: LeftSidebarProps) {
+export default function LeftSidebar({
+  onOpenChat,
+  token,
+  darkMode = false,
+}: LeftSidebarProps) {
   const [conversations, setConversations] = useState<ConversationInfo[]>([]);
   const [onlineUsers, setOnlineUsers] = useState<Set<string>>(new Set());
 
@@ -61,8 +66,8 @@ export default function LeftSidebar({ onOpenChat, token }: LeftSidebarProps) {
     <aside
       className="flex flex-col gap-5 p-4 rounded-2xl shadow-card h-full"
       style={{
-        background: "#FFFAF5",
-        border: "1.5px solid #FFD1DC",
+        background: darkMode ? "#1a1a1a" : "#FFFAF5",
+        border: `1.5px solid ${darkMode ? "#333" : "#FFD1DC"}`,
         minWidth: "200px",
         maxWidth: "220px",
       }}
@@ -80,7 +85,10 @@ export default function LeftSidebar({ onOpenChat, token }: LeftSidebarProps) {
             type="button"
             onClick={() => onOpenChat?.("Art Buddies")}
             className="flex items-center gap-2.5 px-3 py-2 rounded-xl hover:opacity-80 transition-all text-left"
-            style={{ background: "#FFF0F4", border: "1px solid #FFD1DC" }}
+            style={{
+              background: darkMode ? "#222" : "#FFF0F4",
+              border: `1px solid ${darkMode ? "#333" : "#FFD1DC"}`,
+            }}
             data-ocid="sidebar.art_buddies.button"
           >
             <svg
@@ -119,7 +127,7 @@ export default function LeftSidebar({ onOpenChat, token }: LeftSidebarProps) {
             </svg>
             <span
               className="text-sm font-semibold"
-              style={{ color: "#5A4E4E" }}
+              style={{ color: darkMode ? "#ccc" : "#5A4E4E" }}
             >
               Art Buddies
             </span>
@@ -128,7 +136,10 @@ export default function LeftSidebar({ onOpenChat, token }: LeftSidebarProps) {
             type="button"
             onClick={() => onOpenChat?.("Cute Pets Corner")}
             className="flex items-center gap-2.5 px-3 py-2 rounded-xl hover:opacity-80 transition-all text-left"
-            style={{ background: "#F5F0FF", border: "1px solid #C1E1FF" }}
+            style={{
+              background: darkMode ? "#222" : "#F5F0FF",
+              border: `1px solid ${darkMode ? "#333" : "#C1E1FF"}`,
+            }}
             data-ocid="sidebar.cute_pets.button"
           >
             <svg
@@ -166,7 +177,7 @@ export default function LeftSidebar({ onOpenChat, token }: LeftSidebarProps) {
             </svg>
             <span
               className="text-sm font-semibold"
-              style={{ color: "#5A4E4E" }}
+              style={{ color: darkMode ? "#ccc" : "#5A4E4E" }}
             >
               Cute Pets Corner
             </span>
@@ -184,7 +195,10 @@ export default function LeftSidebar({ onOpenChat, token }: LeftSidebarProps) {
         </p>
         <div className="flex flex-col gap-2.5">
           {onlineFriends.length === 0 ? (
-            <p className="text-xs" style={{ color: "#BBA0A8" }}>
+            <p
+              className="text-xs"
+              style={{ color: darkMode ? "#666" : "#BBA0A8" }}
+            >
               No friends online yet 🌸
             </p>
           ) : (
@@ -226,7 +240,7 @@ export default function LeftSidebar({ onOpenChat, token }: LeftSidebarProps) {
                   </div>
                   <span
                     className="text-sm font-semibold truncate"
-                    style={{ color: "#5A4E4E" }}
+                    style={{ color: darkMode ? "#ccc" : "#5A4E4E" }}
                   >
                     {f.otherUserName}
                   </span>

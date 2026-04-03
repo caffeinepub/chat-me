@@ -24,6 +24,7 @@ interface ChatPanelProps {
   messages: Message[];
   onSend: (text: string) => void;
   onOpenChat?: () => void;
+  darkMode?: boolean;
 }
 
 export default function ChatPanel({
@@ -31,6 +32,7 @@ export default function ChatPanel({
   messages,
   onSend,
   onOpenChat,
+  darkMode = false,
 }: ChatPanelProps) {
   const [input, setInput] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
@@ -46,8 +48,8 @@ export default function ChatPanel({
     <div
       className="flex flex-col rounded-2xl shadow-card"
       style={{
-        background: "#FFFAF5",
-        border: "1.5px solid #FFD1DC",
+        background: darkMode ? "#1a1a1a" : "#FFFAF5",
+        border: `1.5px solid ${darkMode ? "#333" : "#FFD1DC"}`,
         minWidth: "280px",
         maxWidth: "320px",
         width: "310px",
@@ -57,7 +59,7 @@ export default function ChatPanel({
       {/* Header */}
       <div
         className="flex items-center gap-2 px-4 py-3"
-        style={{ borderBottom: "1.5px solid #FFD1DC" }}
+        style={{ borderBottom: `1.5px solid ${darkMode ? "#333" : "#FFD1DC"}` }}
       >
         <button
           type="button"
@@ -70,7 +72,7 @@ export default function ChatPanel({
         </button>
         <span
           className="font-bold text-base flex-1"
-          style={{ color: "#1E1E1E" }}
+          style={{ color: darkMode ? "#f5f5f5" : "#1E1E1E" }}
         >
           #{chatName} 🎨
         </span>
@@ -106,7 +108,7 @@ export default function ChatPanel({
                 />
                 <span
                   className="text-xs font-semibold"
-                  style={{ color: "#5A4E4E" }}
+                  style={{ color: darkMode ? "#aaa" : "#5A4E4E" }}
                 >
                   {msg.sender}
                 </span>
@@ -115,8 +117,13 @@ export default function ChatPanel({
             <div
               className="px-3 py-2 rounded-2xl text-sm font-medium max-w-[90%]"
               style={{
-                background: msg.side === "right" ? "#FFE0E8" : "#F5F0FF",
-                color: "#1E1E1E",
+                background:
+                  msg.side === "right"
+                    ? "#FFE0E8"
+                    : darkMode
+                      ? "#2a2a2a"
+                      : "#F5F0FF",
+                color: darkMode ? "#f5f5f5" : "#1E1E1E",
               }}
             >
               {msg.text}
@@ -151,7 +158,7 @@ export default function ChatPanel({
       {/* Input bar */}
       <div
         className="flex items-center gap-2 px-3 py-3"
-        style={{ borderTop: "1.5px solid #FFD1DC" }}
+        style={{ borderTop: `1.5px solid ${darkMode ? "#333" : "#FFD1DC"}` }}
       >
         <button
           type="button"
@@ -234,9 +241,9 @@ export default function ChatPanel({
           placeholder="Type a message..."
           className="flex-1 px-3 py-1.5 rounded-full text-sm outline-none"
           style={{
-            background: "#FFF5F8",
-            border: "1.5px solid #FFD1DC",
-            color: "#1E1E1E",
+            background: darkMode ? "#111" : "#FFF5F8",
+            border: `1.5px solid ${darkMode ? "#333" : "#FFD1DC"}`,
+            color: darkMode ? "#f5f5f5" : "#1E1E1E",
           }}
           data-ocid="chat.input"
         />

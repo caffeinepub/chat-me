@@ -245,11 +245,13 @@ const BANNER_BG_KEY = "chatme_banner_bg";
 interface CentralDashboardProps {
   onJoinChat?: (chatName: string) => void;
   currentUser?: { name: string } | null;
+  darkMode?: boolean;
 }
 
 export default function CentralDashboard({
   onJoinChat,
   currentUser,
+  darkMode = false,
 }: CentralDashboardProps) {
   const [bannerBg, setBannerBg] = useState<string | null>(() =>
     localStorage.getItem(BANNER_BG_KEY),
@@ -280,7 +282,10 @@ export default function CentralDashboard({
         backgroundPosition: "center",
         border: "1.5px solid #FFD1DC",
       }
-    : { background: "#FFE6DB", border: "1.5px solid #FFD1DC" };
+    : {
+        background: darkMode ? "#1a1a1a" : "#FFE6DB",
+        border: `1.5px solid ${darkMode ? "#333" : "#FFD1DC"}`,
+      };
 
   return (
     <div className="flex flex-col gap-5 flex-1 min-w-0">
@@ -301,11 +306,17 @@ export default function CentralDashboard({
         <div className="relative z-10">
           <h1
             className="text-3xl font-bold mb-1"
-            style={{ color: "#1E1E1E", fontFamily: "'Quicksand', sans-serif" }}
+            style={{
+              color: darkMode ? "#f5f5f5" : "#1E1E1E",
+              fontFamily: "'Quicksand', sans-serif",
+            }}
           >
             Welcome, {currentUser?.name ?? "Friend"}! 🌸
           </h1>
-          <p className="text-base font-semibold" style={{ color: "#5A4E4E" }}>
+          <p
+            className="text-base font-semibold"
+            style={{ color: darkMode ? "#aaa" : "#5A4E4E" }}
+          >
             Share. Chat. Smile!
           </p>
         </div>
@@ -372,24 +383,33 @@ export default function CentralDashboard({
           <div
             key={g.name}
             className="flex flex-col gap-3 p-4 rounded-2xl shadow-card"
-            style={{ background: "#FFFAF5", border: "1.5px solid #FFD1DC" }}
+            style={{
+              background: darkMode ? "#1a1a1a" : "#FFFAF5",
+              border: `1.5px solid ${darkMode ? "#333" : "#FFD1DC"}`,
+            }}
             data-ocid={`dashboard.group.item.${i + 1}`}
           >
             <div className="flex items-center gap-2">
               {g.icon}
               <span
                 className="font-bold text-base"
-                style={{ color: "#1E1E1E" }}
+                style={{ color: darkMode ? "#f5f5f5" : "#1E1E1E" }}
               >
                 {g.name} {g.emoji}
               </span>
             </div>
-            <p className="text-xs" style={{ color: "#5A4E4E" }}>
+            <p
+              className="text-xs"
+              style={{ color: darkMode ? "#aaa" : "#5A4E4E" }}
+            >
               {g.desc}
             </p>
             <span
               className="text-xs font-semibold px-2.5 py-0.5 rounded-full self-start"
-              style={{ background: "#FFEEF2", color: "#FF8C9F" }}
+              style={{
+                background: darkMode ? "#2a1520" : "#FFEEF2",
+                color: "#FF8C9F",
+              }}
             >
               {g.online} online
             </span>

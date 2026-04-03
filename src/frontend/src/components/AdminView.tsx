@@ -7,9 +7,14 @@ interface AdminViewProps {
   token: string;
   onBack: () => void;
   onNav: (v: View) => void;
+  darkMode?: boolean;
 }
 
-export default function AdminView({ token, onBack }: AdminViewProps) {
+export default function AdminView({
+  token,
+  onBack,
+  darkMode = false,
+}: AdminViewProps) {
   const [stats, setStats] = useState<AdminStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -54,14 +59,20 @@ export default function AdminView({ token, onBack }: AdminViewProps) {
     >
       <div
         className="flex items-center gap-3 px-4 py-3 sticky top-0 z-10"
-        style={{ background: "#FFFAF5", borderBottom: "1.5px solid #FFD1DC" }}
+        style={{
+          background: darkMode ? "#111" : "#FFFAF5",
+          borderBottom: `1.5px solid ${darkMode ? "#333" : "#FFD1DC"}`,
+        }}
       >
         <button
           type="button"
           onClick={onBack}
           data-ocid="admin.back.button"
           className="w-9 h-9 rounded-full flex items-center justify-center font-bold text-xl hover:opacity-70 transition-all"
-          style={{ background: "#FFF0F4", color: "#FF8C9F" }}
+          style={{
+            background: darkMode ? "#222" : "#FFF0F4",
+            color: "#FF8C9F",
+          }}
         >
           ←
         </button>
@@ -109,7 +120,7 @@ export default function AdminView({ token, onBack }: AdminViewProps) {
               </span>
               <span
                 className="text-sm font-semibold"
-                style={{ color: "#5A4E4E" }}
+                style={{ color: darkMode ? "#aaa" : "#5A4E4E" }}
               >
                 Registered Users 🌸
               </span>
@@ -124,7 +135,7 @@ export default function AdminView({ token, onBack }: AdminViewProps) {
             >
               <h2
                 className="font-bold text-base mb-1"
-                style={{ color: "#1E1E1E" }}
+                style={{ color: darkMode ? "#f5f5f5" : "#1E1E1E" }}
               >
                 All Users 👥
               </h2>
@@ -167,7 +178,7 @@ export default function AdminView({ token, onBack }: AdminViewProps) {
                     <div className="flex items-center gap-2">
                       <span
                         className="font-bold text-sm"
-                        style={{ color: "#1E1E1E" }}
+                        style={{ color: darkMode ? "#f5f5f5" : "#1E1E1E" }}
                       >
                         {user.name}
                       </span>

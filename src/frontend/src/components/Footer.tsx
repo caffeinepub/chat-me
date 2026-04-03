@@ -9,14 +9,21 @@ const heartPositions = [
   { left: 88, top: 20 },
 ];
 
-export default function Footer() {
+interface FooterProps {
+  darkMode?: boolean;
+}
+
+export default function Footer({ darkMode = false }: FooterProps) {
   const year = new Date().getFullYear();
   const host = typeof window !== "undefined" ? window.location.hostname : "";
 
   return (
     <footer
       className="relative w-full py-4 px-8 flex items-center justify-between overflow-hidden"
-      style={{ background: "#FFFAF5", borderTop: "1.5px solid #FFD1DC" }}
+      style={{
+        background: darkMode ? "#111" : "#FFFAF5",
+        borderTop: `1.5px solid ${darkMode ? "#333" : "#FFD1DC"}`,
+      }}
     >
       {/* Decorative hearts */}
       {heartPositions.map((pos) => (
@@ -39,7 +46,7 @@ export default function Footer() {
               type="button"
               className="text-xs font-semibold hover:opacity-70 transition-all"
               style={{
-                color: "#5A4E4E",
+                color: darkMode ? "#aaa" : "#5A4E4E",
                 background: "none",
                 border: "none",
                 padding: 0,
