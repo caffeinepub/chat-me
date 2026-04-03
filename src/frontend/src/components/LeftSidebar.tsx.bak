@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import type { ConversationInfo, PublicUser } from "../backend.d";
+import type { ConversationInfo } from "../backend.d";
 import { getActor, withRetry } from "../lib/actor";
 import { KawaiiCamera, KawaiiHeart } from "./KawaiiDoodles";
 
@@ -7,14 +7,12 @@ interface LeftSidebarProps {
   onOpenChat?: (chatName: string) => void;
   token?: string;
   darkMode?: boolean;
-  currentUserId?: bigint;
 }
 
 export default function LeftSidebar({
   onOpenChat,
   token,
   darkMode = false,
-  currentUserId,
 }: LeftSidebarProps) {
   const [conversations, setConversations] = useState<ConversationInfo[]>([]);
   const [onlineUsers, setOnlineUsers] = useState<Set<string>>(new Set());
@@ -23,56 +21,15 @@ export default function LeftSidebar({
     if (!token) return;
     const load = async () => {
       try {
-        // Fetch both conversations and friends in parallel
-        const [convs, friends] = await Promise.all([
-          withRetry((actor) => actor.getUserConversations(token)).catch(
-            () => [] as ConversationInfo[],
-          ),
-          withRetry((actor) => actor.getMyFriends(token)).catch(
-            () => [] as PublicUser[],
-          ),
-        ]);
-
-        const convList = convs as ConversationInfo[];
-        const friendList = friends as PublicUser[];
-
-        // Build a set of otherUserIds already in convList
-        const existingIds = new Set(
-          convList.map((c) => c.otherUserId.toString()),
+        const convs = await withRetry((actor) =>
+          actor.getUserConversations(token),
         );
-
-        // For friends not yet in conversations, create synthetic ConversationInfo
-        const syntheticConvs: ConversationInfo[] = friendList
-          .filter((f) => !existingIds.has(f.id.toString()))
-          .map((f) => {
-            // Compute shared dm chatId — need both user IDs
-            let chatId: string;
-            if (currentUserId !== undefined) {
-              const a = currentUserId < f.id ? currentUserId : f.id;
-              const b = currentUserId < f.id ? f.id : currentUserId;
-              chatId = `dm_${a}_${b}`;
-            } else {
-              chatId = `friend_${f.id}`;
-            }
-            return {
-              chatId,
-              otherUserId: f.id,
-              otherUserName: f.name,
-              otherUserUsername: f.username,
-              otherUserAvatar: f.avatarUrl,
-              lastMessage: "",
-              lastTimestamp: BigInt(0),
-            };
-          });
-
-        const merged = [...convList, ...syntheticConvs];
-        setConversations(merged);
-
-        // Check online status for all merged users
+        const convList = convs as ConversationInfo[];
+        setConversations(convList);
         try {
           const actor = await getActor();
           const checks = await Promise.all(
-            merged.map((c) =>
+            convList.map((c) =>
               (actor as any)
                 .isUserOnline(c.otherUserId)
                 .then((v: boolean) => ({
@@ -99,7 +56,11 @@ export default function LeftSidebar({
     load();
     const id = setInterval(load, 10000);
     return () => clearInterval(id);
-  }, [token, currentUserId]);
+  }, [token]);
+
+  const onlineFriends = conversations.filter((c) =>
+    onlineUsers.has(c.otherUserId.toString()),
+  );
 
   return (
     <aside
@@ -224,24 +185,24 @@ export default function LeftSidebar({
         </div>
       </div>
 
-      {/* My Friends — all added friends */}
+      {/* Online Friends — real users only */}
       <div>
         <p
           className="text-xs font-bold uppercase tracking-wider mb-3"
           style={{ color: "#FF8C9F" }}
         >
-          My Friends
+          Online Friends
         </p>
         <div className="flex flex-col gap-2.5">
-          {conversations.length === 0 ? (
+          {onlineFriends.length === 0 ? (
             <p
               className="text-xs"
               style={{ color: darkMode ? "#666" : "#BBA0A8" }}
             >
-              No friends added yet 🌸
+              No friends online yet 🌸
             </p>
           ) : (
-            conversations.map((f) => {
+            onlineFriends.map((f) => {
               const initials = f.otherUserName
                 ? f.otherUserName.slice(0, 2).toUpperCase()
                 : "??";
@@ -272,12 +233,10 @@ export default function LeftSidebar({
                         initials
                       )}
                     </div>
-                    {onlineUsers.has(f.otherUserId.toString()) && (
-                      <div
-                        className="absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full border-2 border-white"
-                        style={{ background: "#4CAF50" }}
-                      />
-                    )}
+                    <div
+                      className="absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full border-2 border-white"
+                      style={{ background: "#4CAF50" }}
+                    />
                   </div>
                   <span
                     className="text-sm font-semibold truncate"

@@ -22,10 +22,18 @@
     <link rel="icon" type="image/jpeg" sizes="512x512" href="/assets/uploads/92b049e7e6986de0dabd5a85eb518c30-019d32cb-469c-712f-b57e-9c8879b35386-1.jpg" />
     <link rel="icon" type="image/jpeg" href="/assets/uploads/92b049e7e6986de0dabd5a85eb518c30-019d32cb-469c-712f-b57e-9c8879b35386-1.jpg" />
 
-    <!-- Fonts -->
+    <!-- Fonts - preload for faster loading, display=swap so text shows even if fonts not loaded -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Quicksand:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Quicksand:wght@400;500;600;700&display=swap" rel="stylesheet" media="print" onload="this.media='all'" />
+    <noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Quicksand:wght@400;500;600;700&display=swap"></noscript>
+
+    <!-- Inline fallback font style - so app looks good even when Google Fonts can't load -->
+    <style>
+      body, * {
+        font-family: 'Quicksand', 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
+      }
+    </style>
   </head>
   <body>
     <div id="root"></div>
@@ -35,7 +43,7 @@
       if ('serviceWorker' in navigator) {
         window.addEventListener('load', function() {
           navigator.serviceWorker.register('/sw.js').then(function(reg) {
-            console.log('SW registered');
+            console.log('SW registered: Chat Me v4');
           }).catch(function(err) {
             console.log('SW registration failed:', err);
           });

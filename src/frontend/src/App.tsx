@@ -264,7 +264,7 @@ export default function App() {
         }
         setView("login");
       }
-    }, 2500);
+    }, 800);
     return () => clearTimeout(timer);
   }, []);
 
@@ -356,6 +356,7 @@ export default function App() {
           <LeftSidebar
             token={token ?? ""}
             darkMode={darkMode}
+            currentUserId={currentUser?.id}
             onOpenChat={(chatId) => {
               if (chatId.startsWith("dm_")) {
                 openChat(chatId, chatId);
