@@ -268,6 +268,15 @@ persistent actor ChatMe {
     });
   };
 
+  // Strip all whitespace chars including newline, tab, carriage return
+  func stripAll(t: Text): Text {
+    Text.fromIter(
+      Iter.filter(Text.toIter(t), func(c: Char): Bool {
+        c != ' ' and c != '\n' and c != '\r' and c != '\t'
+      })
+    );
+  };
+
   func isValidUsername(uname: Text): Bool {
     if (uname.size() < 3 or uname.size() > 20) return false;
     for (c in Text.toIter(uname)) {
@@ -430,19 +439,23 @@ persistent actor ChatMe {
   };
 
   public func loginWithPassword(username: Text, password: Text): async LoginResult {
-    let uname = Text.trim(username, #char ' ');
-    let pass = Text.trim(password, #char ' ');
+    // Strip ALL whitespace including newlines/tabs that phone keyboards can add
+    let uname = stripAll(username);
+    let pass = stripAll(password);
     if (uname == "" or pass == "") return #err("All fields required");
     switch (findUserByUsername(uname)) {
-      case null { #err("Username not found. Please check or register first.") };
+      case null { #err("Username not found. Pehle register karo ya username check karo.") };
       case (?u) {
-        // Try trimmed password, also try stored password trimmed (for backwards compat)
+        // Try stored password, trimmed stored, and stripAll stored
+        let storedStripped = stripAll(u.password);
         let storedTrimmed = Text.trim(u.password, #char ' ');
-        if (u.password != pass and storedTrimmed != pass) return #err("Wrong password. Please try again.");
-        // Auto-fix stored password if it has spaces
-        if (u.password != storedTrimmed) {
+        if (u.password != pass and storedTrimmed != pass and storedStripped != pass) {
+          return #err("Wrong password. 'Reset karo' se password change kar sakte ho.");
+        };
+        // Auto-fix stored password if it has extra chars
+        if (u.password != storedStripped) {
           let fixed: User = {
-            id = u.id; username = u.username; password = storedTrimmed;
+            id = u.id; username = u.username; password = storedStripped;
             name = u.name; about = u.about; avatarUrl = u.avatarUrl;
             phone = u.phone; joinedAt = u.joinedAt; isAdmin = u.isAdmin;
           };
@@ -453,6 +466,14 @@ persistent actor ChatMe {
         lastSeen.put(u.id, Time.now());
         #ok({ token = token; user = toPublic(u) });
       };
+    };
+  };
+
+  // Check if a username exists (query - no state change)
+  public query func checkUserExists(uname: Text): async Bool {
+    switch (findUserByUsername(stripAll(uname))) {
+      case null false;
+      case (?_) true;
     };
   };
 
@@ -867,8 +888,8 @@ persistent actor ChatMe {
 
   // Direct force reset - no recovery key needed, for emergency admin access
   public func forceResetPassword(targetUsername: Text, newPassword: Text): async Text {
-    let trimUser = Text.trim(targetUsername, #char ' ');
-    let trimPass = Text.trim(newPassword, #char ' ');
+    let trimUser = stripAll(targetUsername);
+    let trimPass = stripAll(newPassword);
     if (trimUser == "") return "Username required";
     if (trimPass.size() < 4) return "Password must be at least 4 characters";
     let lower = toLower(trimUser);

@@ -102,14 +102,15 @@ export default function LoginScreen({
   ];
 
   const handleLogin = async () => {
-    const uname = loginUsername.trim();
-    const pass = loginPassword.trim();
+    // Strip ALL whitespace including newlines/tabs from phone keyboards
+    const uname = loginUsername.replace(/\s/g, "");
+    const pass = loginPassword.replace(/\s/g, "");
     if (!uname) {
-      setError("Please enter your username 💕");
+      setError("Username daalo 💕");
       return;
     }
     if (!pass) {
-      setError("Please enter your password 🔑");
+      setError("Password daalo 🔑");
       return;
     }
     setLoading(true);
@@ -130,13 +131,20 @@ export default function LoginScreen({
         onLogin(result.ok.token, result.ok.user);
       } else {
         let errMsg = result.err;
-        if (errMsg.toLowerCase().includes("wrong password")) {
-          errMsg = `${result.err} — Password bhool gaye? "Reset karo" se reset kar sakte ho ❌`;
+        if (errMsg.toLowerCase().includes("not found")) {
+          errMsg = `Username "${uname}" nahi mila. Sahi username daalo ya pehle register karo.`;
+        } else if (errMsg.toLowerCase().includes("wrong password")) {
+          errMsg = `Galat password. Neeche "Reset karo 🔑" se password change kar sakte ho.`;
         }
         setError(errMsg);
+        if (errMsg.toLowerCase().includes("reset")) {
+          setShowDemoBtn(false);
+        }
       }
     } catch {
-      setError("Could not reach server. Please try again later 📡");
+      setError(
+        "Server se connect nahi ho paya. Internet check karo ya kuch seconds baad try karo. 📡",
+      );
       setShowDemoBtn(true);
     } finally {
       setLoading(false);
@@ -208,7 +216,9 @@ export default function LoginScreen({
         setError(`${result.err} ❌`);
       }
     } catch {
-      setError("Could not reach server. Please try again later 📡");
+      setError(
+        "Server se connect nahi ho paya. Internet check karo ya kuch seconds baad try karo. 📡",
+      );
       setShowDemoBtn(true);
     } finally {
       setLoading(false);
@@ -235,21 +245,10 @@ export default function LoginScreen({
     setLoading(true);
     setResetMsg("Reset ho raha hai... 💫");
     try {
-      // Try forceResetPassword first (no recovery key), fallback to resetAdminPassword
-      let result: string;
-      try {
-        result = await withRetry(async (actor) =>
-          (actor as any).forceResetPassword(uname, np),
-        );
-      } catch {
-        result = await withRetry(async (actor) =>
-          (actor as any).resetAdminPassword(
-            uname,
-            np,
-            "CHATME_ADMIN_RECOVERY_2026",
-          ),
-        );
-      }
+      // Use forceResetPassword directly with retry — no nested try/catch fallback
+      const result = await withRetry((actor) =>
+        actor.forceResetPassword(uname, np),
+      );
       if (
         typeof result === "string" &&
         result.toLowerCase().includes("success")
@@ -257,16 +256,19 @@ export default function LoginScreen({
         setResetMsg("✅ Password reset ho gaya! Ab login karo.");
         setTimeout(() => {
           setTab("login");
+          // Pre-fill the username so user can immediately log in
           setLoginUsername(uname);
           setResetMsg("");
         }, 2000);
       } else {
         setResetMsg(
-          `${typeof result === "string" ? result : "Reset failed"} ❌`,
+          `${typeof result === "string" ? result : "Reset failed"} — Please try again ❌`,
         );
       }
     } catch {
-      setResetMsg("Server se connect nahi ho paya. Dobara try karo. 📡");
+      setResetMsg(
+        "Server se connect nahi ho paya. Internet check karo ya kuch seconds baad try karo. 📡",
+      );
     } finally {
       setLoading(false);
     }
@@ -394,23 +396,40 @@ export default function LoginScreen({
             </div>
           )}
           {showDemoBtn && (
-            <button
-              type="button"
-              onClick={() =>
-                tab === "login"
-                  ? enterDemoMode(loginUsername.trim(), "")
-                  : enterDemoMode(regUsername.trim(), regName.trim())
-              }
-              className="w-full py-3 rounded-full font-bold text-sm transition-all hover:opacity-85"
-              style={{
-                background: "transparent",
-                border: "2px solid #FF8C9F",
-                color: "#FF8C9F",
-              }}
-              data-ocid="login.secondary_button"
-            >
-              🎮 Continue in Demo Mode
-            </button>
+            <div className="flex flex-col gap-2">
+              <button
+                type="button"
+                onClick={() =>
+                  tab === "login" ? handleLogin() : handleRegister()
+                }
+                disabled={loading}
+                className="w-full py-2.5 rounded-full font-bold text-sm transition-all hover:opacity-85"
+                style={{
+                  background: "#FF8C9F",
+                  color: "#fff",
+                }}
+                data-ocid="login.primary_button"
+              >
+                🔄 Dobara Try Karo
+              </button>
+              <button
+                type="button"
+                onClick={() =>
+                  tab === "login"
+                    ? enterDemoMode(loginUsername.trim(), "")
+                    : enterDemoMode(regUsername.trim(), regName.trim())
+                }
+                className="w-full py-2.5 rounded-full font-bold text-sm transition-all hover:opacity-85"
+                style={{
+                  background: "transparent",
+                  border: "2px solid #FF8C9F",
+                  color: "#FF8C9F",
+                }}
+                data-ocid="login.secondary_button"
+              >
+                🎮 Demo Mode mein Continue Karo
+              </button>
+            </div>
           )}
           {successMsg && (
             <div
@@ -509,6 +528,7 @@ export default function LoginScreen({
                   onClick={() => {
                     setTab("reset");
                     setResetMsg("");
+                    setResetUsername(loginUsername.trim());
                   }}
                   className="underline font-bold"
                   style={{

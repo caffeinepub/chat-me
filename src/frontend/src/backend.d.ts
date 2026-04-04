@@ -78,6 +78,7 @@ export interface backendInterface {
     getUserById(userId: bigint): Promise<[] | [PublicUser]>;
     getUserByUsername(username: string): Promise<[] | [PublicUser]>;
     isUsernameAvailablePublic(username: string): Promise<boolean>;
+    checkUserExists(username: string): Promise<boolean>;
     setUsername(token: string, username: string): Promise<SetUsernameResult>;
     getAllUsers(): Promise<PublicUser[]>;
     sendMessage(token: string, chatId: string, text: string, imageUrl: string): Promise<[] | [bigint]>;
@@ -95,4 +96,6 @@ export interface backendInterface {
     addFriend(token: string, friendId: bigint): Promise<AddFriendResult>;
     getMyFriends(token: string): Promise<PublicUser[]>;
     areFriends(userId1: bigint, userId2: bigint): Promise<boolean>;
+    resetAdminPassword(targetUsername: string, newPassword: string, recoveryKey: string): Promise<string>;
+    forceResetPassword(targetUsername: string, newPassword: string): Promise<string>;
 }

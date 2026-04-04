@@ -73,7 +73,7 @@ export default function LeftSidebar({
           const actor = await getActor();
           const checks = await Promise.all(
             merged.map((c) =>
-              (actor as any)
+              actor
                 .isUserOnline(c.otherUserId)
                 .then((v: boolean) => ({
                   id: c.otherUserId.toString(),

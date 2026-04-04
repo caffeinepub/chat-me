@@ -211,7 +211,7 @@ export default function ActiveChat({
     const loadPrefs = async () => {
       try {
         const actor = await getActor();
-        const wallpaperId = await (actor as any).getChatWallpaper(chatId);
+        const wallpaperId = await actor.getChatWallpaper(chatId);
         if (
           wallpaperId &&
           WALLPAPER_PRESETS.find((w) => w.id === wallpaperId)
@@ -235,7 +235,7 @@ export default function ActiveChat({
     const sendHeartbeat = async () => {
       try {
         const actor = await getActor();
-        await (actor as any).heartbeat(token);
+        await actor.heartbeat(token);
       } catch {
         // silent
       }
@@ -255,7 +255,7 @@ export default function ActiveChat({
     const checkOnline = async () => {
       try {
         const actor = await getActor();
-        const online = await (actor as any).isUserOnline(BigInt(otherUserId));
+        const online = await actor.isUserOnline(BigInt(otherUserId));
         setIsOtherOnline(!!online);
       } catch {
         // ignore
@@ -363,7 +363,7 @@ export default function ActiveChat({
     setShowWallpaperPicker(false);
     try {
       const actor = await getActor();
-      await (actor as any).setChatWallpaper(token, chatId, wallpaperId);
+      await actor.setChatWallpaper(token, chatId, wallpaperId);
     } catch {
       // local-only fallback
     }
@@ -396,6 +396,11 @@ export default function ActiveChat({
       status: "sent",
     };
     setMessages((prev) => [...prev, optimisticMsg]);
+
+    // In demo mode, show message locally without backend call
+    if (token.startsWith("demo-")) {
+      return;
+    }
 
     try {
       const result = await withRetry((actor) =>
@@ -466,6 +471,11 @@ export default function ActiveChat({
       status: "sent",
     };
     setMessages((prev) => [...prev, optimisticMsg]);
+
+    // In demo mode, show sticker locally without backend call
+    if (token.startsWith("demo-")) {
+      return;
+    }
 
     try {
       const result = await withRetry((actor) =>

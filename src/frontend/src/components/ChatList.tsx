@@ -25,16 +25,11 @@ function playNotificationSound() {
   }
 }
 
-function getStorageKey(currentUser: PublicUser | null, token: string): string {
-  if (currentUser?.id != null) return `chatme_contacts_uid_${currentUser.id}`;
-  if (token && !token.startsWith("demo-")) return `chatme_contacts_${token}`;
-  return "";
-}
-
 function loadContactsFromStorage(
   currentUser: PublicUser | null,
   token: string,
 ): ConversationInfo[] {
+  // Try uid-based key first (most reliable), then token-based key as fallback
   const keys = [
     currentUser?.id != null ? `chatme_contacts_uid_${currentUser.id}` : "",
     token && !token.startsWith("demo-") ? `chatme_contacts_${token}` : "",
@@ -62,16 +57,27 @@ function saveContactsToStorage(
   token: string,
   contacts: ConversationInfo[],
 ) {
-  const key = getStorageKey(currentUser, token);
-  if (!key) return;
-  try {
-    const serializable = contacts.map((c) => ({
-      ...c,
-      lastTimestamp: c.lastTimestamp.toString(),
-    }));
-    localStorage.setItem(key, JSON.stringify(serializable));
-  } catch {
-    // ignore
+  // Always serialize bigints as strings
+  const serializable = contacts.map((c) => ({
+    ...c,
+    lastTimestamp: c.lastTimestamp.toString(),
+  }));
+  const json = JSON.stringify(serializable);
+
+  // Save to BOTH uid-based AND token-based keys so data is never lost
+  if (currentUser?.id != null) {
+    try {
+      localStorage.setItem(`chatme_contacts_uid_${currentUser.id}`, json);
+    } catch {
+      // ignore storage errors
+    }
+  }
+  if (token && !token.startsWith("demo-")) {
+    try {
+      localStorage.setItem(`chatme_contacts_${token}`, json);
+    } catch {
+      // ignore storage errors
+    }
   }
 }
 
@@ -123,7 +129,7 @@ export default function ChatList({
   // Admin user id (id = 1n)
   const adminId = 1n;
 
-  // Reload from storage when currentUser becomes available
+  // Reload from storage when currentUser becomes available (handles first-render race condition)
   useEffect(() => {
     if (!currentUser) return;
     const fromStorage = loadContactsFromStorage(currentUser, token);
@@ -147,14 +153,21 @@ export default function ChatList({
         );
         const convList = convs as ConversationInfo[];
 
-        // Merge backend data with local contacts (never lose local contacts)
+        // Merge backend data with local contacts — NEVER lose local contacts
         setConversations((prev) => {
+          // If backend returned nothing, keep prev as-is and save it
+          if (convList.length === 0 && prev.length > 0) {
+            // Still save to ensure persistence across both key types
+            saveContactsToStorage(currentUser, token, prev);
+            return prev;
+          }
+
           const merged = [...convList];
           for (const p of prev) {
             if (!merged.some((r) => r.chatId === p.chatId)) merged.push(p);
           }
           const sorted = sortConversations(merged, adminId);
-          // Always save merged result to localStorage
+          // Always save merged result to localStorage (both uid and token keys)
           saveContactsToStorage(currentUser, token, sorted);
           return sorted;
         });
@@ -185,7 +198,7 @@ export default function ChatList({
           const actor = await getActor();
           const checks = await Promise.all(
             convList.map((c) =>
-              (actor as any)
+              actor
                 .isUserOnline(c.otherUserId)
                 .then((v: boolean) => ({
                   id: c.otherUserId.toString(),
@@ -254,7 +267,8 @@ export default function ChatList({
     setAddingFriend(true);
     try {
       const actor = await getActor();
-      await (actor as any).addFriend(token, user.id);
+      // addFriend is properly typed — no cast needed
+      await actor.addFriend(token, user.id);
       setAddedFriends((prev) => new Set([...prev, user.id.toString()]));
 
       // Also add to local conversation list immediately
@@ -474,23 +488,14 @@ export default function ChatList({
           </div>
         )}
 
+        {/* Search bar */}
         <div className="relative">
-          <svg
-            className="absolute left-3 top-1/2 -translate-y-1/2"
-            width="16"
-            height="16"
-            viewBox="0 0 16 16"
-            fill="none"
-            aria-hidden="true"
+          <span
+            className="absolute left-3.5 top-1/2 -translate-y-1/2 text-base"
+            style={{ color: "#FF8C9F" }}
           >
-            <circle cx="7" cy="7" r="5" stroke="#FF8C9F" strokeWidth="1.5" />
-            <path
-              d="M11 11 L14 14"
-              stroke="#FF8C9F"
-              strokeWidth="1.5"
-              strokeLinecap="round"
-            />
-          </svg>
+            🔍
+          </span>
           <input
             type="text"
             value={search}
@@ -498,7 +503,7 @@ export default function ChatList({
             placeholder="Search chats..."
             className="w-full pl-9 pr-4 py-2.5 rounded-full text-sm outline-none"
             style={{
-              background: darkMode ? "#1a1a1a" : "#FFF5F8",
+              background: darkMode ? "#1a1a1a" : "#F5F0FF",
               border: `1.5px solid ${darkMode ? "#333" : "#FFD1DC"}`,
               color: darkMode ? "#f5f5f5" : "#1E1E1E",
             }}
@@ -508,143 +513,158 @@ export default function ChatList({
       </div>
 
       {/* Chat list */}
-      <div className="flex flex-col px-4 py-3 gap-1">
-        {filteredConvs.length === 0 && (
+      <div className="flex-1 overflow-y-auto">
+        {filteredConvs.length === 0 ? (
           <div
-            className="flex flex-col items-center py-16"
+            className="flex flex-col items-center justify-center py-16 gap-3"
             data-ocid="chatlist.empty_state"
           >
-            <span className="text-4xl mb-3">💬</span>
+            <span className="text-4xl">💬</span>
             <p
               className="text-sm font-semibold"
-              style={{ color: darkMode ? "#aaa" : "#7A6E6E" }}
+              style={{ color: darkMode ? "#666" : "#BBA0A8" }}
             >
-              No chats yet — find a friend by ID! 🌸
+              {search ? "No chats found 🔍" : "No chats yet 🌸"}
+            </p>
+            <p
+              className="text-xs text-center px-8"
+              style={{ color: darkMode ? "#555" : "#CCA0B0" }}
+            >
+              {search
+                ? "Try a different name"
+                : 'Use "Find by ID" to start chatting with someone!'}
             </p>
           </div>
-        )}
-        {filteredConvs.map((conv, i) => {
-          const initials = conv.otherUserName
-            ? conv.otherUserName.slice(0, 2).toUpperCase()
-            : "??";
-          const ts =
-            conv.lastTimestamp > 0n
-              ? new Date(Number(conv.lastTimestamp / 1_000_000n))
-              : null;
-          const timeStr = ts
-            ? ts.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
-            : "";
-          const isOnline = onlineUsers.has(conv.otherUserId.toString());
-          const unread = unreadCounts[conv.chatId] ?? 0;
-          const isAdmin = conv.otherUserId === adminId;
-          return (
-            <button
-              key={conv.chatId}
-              type="button"
-              onClick={() => handleOpenChat(conv.chatId, conv.otherUserName)}
-              data-ocid={`chatlist.item.${i + 1}`}
-              className="flex items-center gap-3 px-4 py-3 rounded-2xl transition-all hover:opacity-85 text-left"
-              style={{
-                background: isAdmin
-                  ? darkMode
-                    ? "#2a1520"
-                    : "#FFF0F8"
-                  : darkMode
-                    ? "#1a1a1a"
-                    : "#FFFAF5",
-                border: isAdmin
-                  ? "1.5px solid #FF8C9F"
-                  : `1.5px solid ${darkMode ? "#333" : "#FFD1DC"}`,
-              }}
-            >
-              <div className="relative flex-shrink-0">
-                <div
-                  className="w-12 h-12 rounded-full flex items-center justify-center text-sm font-bold text-white"
-                  style={{
-                    background: conv.otherUserAvatar
-                      ? undefined
-                      : isAdmin
-                        ? "linear-gradient(135deg, #FF8C9F 0%, #FFB6C1 100%)"
+        ) : (
+          filteredConvs.map((conv, i) => {
+            const isAdmin = conv.otherUserId === adminId;
+            const unread = unreadCounts[conv.chatId] ?? 0;
+            const isOnline = onlineUsers.has(conv.otherUserId.toString());
+            const initials = conv.otherUserName
+              ? conv.otherUserName.slice(0, 2).toUpperCase()
+              : "??";
+            return (
+              <button
+                key={conv.chatId}
+                type="button"
+                onClick={() =>
+                  handleOpenChat(
+                    conv.chatId,
+                    conv.otherUserName || conv.otherUserUsername,
+                  )
+                }
+                className="w-full flex items-center gap-3 px-5 py-3.5 hover:opacity-80 transition-all text-left"
+                style={{
+                  borderBottom: `1px solid ${darkMode ? "#1a1a1a" : "#FFF0F4"}`,
+                  background: isAdmin
+                    ? darkMode
+                      ? "#1a0f1a"
+                      : "#FFF5FC"
+                    : "transparent",
+                  outline: isAdmin
+                    ? `1.5px solid ${darkMode ? "#6b21a8" : "#F0ABFC"}`
+                    : "none",
+                }}
+                data-ocid={`chatlist.item.${i + 1}`}
+              >
+                {/* Avatar */}
+                <div className="relative flex-shrink-0">
+                  <div
+                    className="w-12 h-12 rounded-full flex items-center justify-center text-sm font-bold text-white overflow-hidden"
+                    style={{
+                      background: conv.otherUserAvatar
+                        ? undefined
                         : "linear-gradient(135deg, #FFB6C1 0%, #C1A0FF 100%)",
-                  }}
-                >
-                  {conv.otherUserAvatar ? (
-                    <img
-                      src={conv.otherUserAvatar}
-                      alt={initials}
-                      className="w-full h-full rounded-full object-cover"
+                      border: isAdmin ? "2px solid #F0ABFC" : "none",
+                    }}
+                  >
+                    {conv.otherUserAvatar ? (
+                      <img
+                        src={conv.otherUserAvatar}
+                        alt={initials}
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      initials
+                    )}
+                  </div>
+                  {/* Online dot */}
+                  {isOnline && (
+                    <div
+                      className="absolute bottom-0 right-0 w-3 h-3 rounded-full border-2"
+                      style={{
+                        background: "#4CAF50",
+                        borderColor: darkMode ? "#0d0d0d" : "white",
+                      }}
                     />
-                  ) : (
-                    initials
+                  )}
+                  {/* Unread badge */}
+                  {unread > 0 && (
+                    <div
+                      className="absolute -top-1 -right-1 w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold text-white"
+                      style={{ background: "#FF4081" }}
+                      data-ocid={`chatlist.item.${i + 1}`}
+                    >
+                      {unread > 9 ? "9+" : unread}
+                    </div>
                   )}
                 </div>
-                {isOnline && (
-                  <span
-                    className="absolute bottom-0 right-0 w-3 h-3 rounded-full border-2 border-white"
-                    style={{ background: "#22c55e" }}
-                  />
-                )}
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center justify-between gap-1">
-                  {/* Name + @username + admin badge */}
-                  <div className="flex items-baseline gap-1.5 min-w-0 flex-1">
-                    <span
-                      className="font-bold text-sm truncate"
-                      style={{ color: darkMode ? "#f5f5f5" : "#1E1E1E" }}
-                    >
-                      {conv.otherUserName}
-                    </span>
-                    <span
-                      className="text-xs font-normal flex-shrink-0"
-                      style={{ color: "#FF8C9F" }}
-                    >
-                      @{conv.otherUserUsername}
-                    </span>
-                    {isAdmin && (
+
+                {/* Text */}
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-1.5 min-w-0">
                       <span
-                        className="text-[10px] font-bold px-1.5 py-0.5 rounded-full flex-shrink-0"
-                        style={{
-                          background: "#FFD1DC",
-                          color: "#C0304A",
-                        }}
+                        className="font-bold text-sm truncate"
+                        style={{ color: darkMode ? "#f5f5f5" : "#1E1E1E" }}
                       >
-                        Admin
+                        {conv.otherUserName || conv.otherUserUsername}
+                      </span>
+                      {conv.otherUserUsername && (
+                        <span
+                          className="text-xs font-semibold flex-shrink-0"
+                          style={{ color: "#FF8C9F" }}
+                        >
+                          @{conv.otherUserUsername}
+                        </span>
+                      )}
+                      {isAdmin && (
+                        <span
+                          className="text-[9px] font-bold px-1.5 py-0.5 rounded-full flex-shrink-0"
+                          style={{
+                            background: "#F0ABFC",
+                            color: "#6b21a8",
+                          }}
+                        >
+                          Admin
+                        </span>
+                      )}
+                    </div>
+                    {conv.lastTimestamp > 0n && (
+                      <span
+                        className="text-[10px] flex-shrink-0"
+                        style={{ color: darkMode ? "#666" : "#BBA0A8" }}
+                      >
+                        {new Date(
+                          Number(conv.lastTimestamp) / 1_000_000,
+                        ).toLocaleTimeString([], {
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        })}
                       </span>
                     )}
                   </div>
-                  <div className="flex items-center gap-1.5 flex-shrink-0">
-                    <span className="text-xs" style={{ color: "#aaa" }}>
-                      {timeStr}
-                    </span>
-                    {unread > 0 && (
-                      <span
-                        className="inline-flex items-center justify-center rounded-full text-white font-bold"
-                        style={{
-                          background: "#FF8C9F",
-                          fontSize: "10px",
-                          minWidth: "18px",
-                          height: "18px",
-                          padding: "0 4px",
-                        }}
-                        data-ocid={`chatlist.item.${i + 1}.toast`}
-                      >
-                        {unread > 99 ? "99+" : unread}
-                      </span>
-                    )}
-                  </div>
+                  <p
+                    className="text-xs truncate mt-0.5"
+                    style={{ color: darkMode ? "#888" : "#7A6E6E" }}
+                  >
+                    {conv.lastMessage || "No messages yet"}
+                  </p>
                 </div>
-                {/* Last message only on second line */}
-                <p
-                  className="text-xs truncate mt-0.5"
-                  style={{ color: darkMode ? "#888" : "#7A6E6E" }}
-                >
-                  {conv.lastMessage || "Say hello! 👋"}
-                </p>
-              </div>
-            </button>
-          );
-        })}
+              </button>
+            );
+          })
+        )}
       </div>
 
       <BottomNav active="chats" onNav={onNav} darkMode={darkMode} />

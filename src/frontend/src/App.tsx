@@ -228,6 +228,15 @@ export default function App() {
     }
   };
 
+  // Pre-warm the actor connection as soon as the app loads
+  useEffect(() => {
+    import("./lib/actor").then(({ getActor }) => {
+      getActor().catch(() => {
+        /* ignore prewarm failure */
+      });
+    });
+  }, []);
+
   useEffect(() => {
     const timer = setTimeout(async () => {
       const savedToken = localStorage.getItem("chatme_token");
