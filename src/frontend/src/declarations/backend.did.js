@@ -98,6 +98,7 @@ export const idlFactory = ({ IDL }) => {
     register: IDL.Func([IDL.Text, IDL.Text, IDL.Text], [RegisterResult], []),
     login: IDL.Func([IDL.Text, IDL.Text], [LoginResult], []),
     resetAdminPassword: IDL.Func([IDL.Text, IDL.Text, IDL.Text], [IDL.Text], []),
+    forceResetPassword: IDL.Func([IDL.Text, IDL.Text], [IDL.Text], []),
   });
 };
 

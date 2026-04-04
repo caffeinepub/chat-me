@@ -235,13 +235,21 @@ export default function LoginScreen({
     setLoading(true);
     setResetMsg("Reset ho raha hai... 💫");
     try {
-      const result = await withRetry(async (actor) =>
-        (actor as any).resetAdminPassword(
-          uname,
-          np,
-          "CHATME_ADMIN_RECOVERY_2026",
-        ),
-      );
+      // Try forceResetPassword first (no recovery key), fallback to resetAdminPassword
+      let result: string;
+      try {
+        result = await withRetry(async (actor) =>
+          (actor as any).forceResetPassword(uname, np),
+        );
+      } catch {
+        result = await withRetry(async (actor) =>
+          (actor as any).resetAdminPassword(
+            uname,
+            np,
+            "CHATME_ADMIN_RECOVERY_2026",
+          ),
+        );
+      }
       if (
         typeof result === "string" &&
         result.toLowerCase().includes("success")

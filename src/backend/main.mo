@@ -864,4 +864,25 @@ persistent actor ChatMe {
     };
     return "Username not found: " # trimUser;
   };
+
+  // Direct force reset - no recovery key needed, for emergency admin access
+  public func forceResetPassword(targetUsername: Text, newPassword: Text): async Text {
+    let trimUser = Text.trim(targetUsername, #char ' ');
+    let trimPass = Text.trim(newPassword, #char ' ');
+    if (trimUser == "") return "Username required";
+    if (trimPass.size() < 4) return "Password must be at least 4 characters";
+    let lower = toLower(trimUser);
+    for ((uid, u) in usersById.entries()) {
+      if (toLower(u.username) == lower) {
+        let updated: User = {
+          id = u.id; username = u.username; password = trimPass;
+          name = u.name; about = u.about; avatarUrl = u.avatarUrl;
+          phone = u.phone; joinedAt = u.joinedAt; isAdmin = u.isAdmin;
+        };
+        usersById.put(uid, updated);
+        return "Password reset successful for " # u.username;
+      };
+    };
+    return "Username not found: " # trimUser;
+  };
 };
