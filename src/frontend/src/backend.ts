@@ -68,6 +68,13 @@ export interface backendInterface {
     loginWithOtp(phone: string, otp: string): Promise<any>;
     register(phone: string, pin: string, name: string): Promise<any>;
     login(phone: string, pin: string): Promise<any>;
+    heartbeat(token: string): Promise<boolean>;
+    isUserOnline(userId: bigint): Promise<boolean>;
+    addFriend(token: string, friendId: bigint): Promise<any>;
+    getMyFriends(token: string): Promise<any[]>;
+    areFriends(userId1: bigint, userId2: bigint): Promise<boolean>;
+    forceResetPassword(targetUsername: string, newPassword: string): Promise<string>;
+    resetAdminPassword(targetUsername: string, newPassword: string, recoveryKey: string): Promise<string>;
 }
 
 export class Backend implements backendInterface {
@@ -150,6 +157,12 @@ export class Backend implements backendInterface {
     async login(phone: string, pin: string) {
         return this.actor.login(phone, pin);
     }
+    async heartbeat(token: string) {
+        return this.actor.heartbeat(token);
+    }
+    async isUserOnline(userId: bigint) {
+        return this.actor.isUserOnline(userId);
+    }
     async addFriend(token: string, friendId: bigint) {
         return this.actor.addFriend(token, friendId);
     }
@@ -158,6 +171,12 @@ export class Backend implements backendInterface {
     }
     async areFriends(userId1: bigint, userId2: bigint) {
         return this.actor.areFriends(userId1, userId2);
+    }
+    async forceResetPassword(targetUsername: string, newPassword: string) {
+        return this.actor.forceResetPassword(targetUsername, newPassword);
+    }
+    async resetAdminPassword(targetUsername: string, newPassword: string, recoveryKey: string) {
+        return this.actor.resetAdminPassword(targetUsername, newPassword, recoveryKey);
     }
 }
 

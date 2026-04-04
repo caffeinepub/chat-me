@@ -68,6 +68,8 @@ export interface _SERVICE {
   addFriend: ActorMethod<[string, bigint], AddFriendResult>;
   getMyFriends: ActorMethod<[string], Array<PublicUser>>;
   areFriends: ActorMethod<[bigint, bigint], boolean>;
+  forceResetPassword: ActorMethod<[string, string], string>;
+  resetAdminPassword: ActorMethod<[string, string, string], string>;
 }
 
 export declare const idlFactory: IDL.InterfaceFactory;
