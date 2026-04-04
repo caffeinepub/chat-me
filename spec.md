@@ -1,30 +1,26 @@
 # Chat Me
 
 ## Current State
-App is a WhatsApp-inspired messaging app with pastel/cute aesthetic. Settings page has wallpaper, home theme (17 options), font size, and notification toggles. There is no global dark mode toggle. The app uses light pastel colors throughout all views (backgrounds, cards, navbars, chat bubbles, etc.).
+Login system uses `loginWithPassword(username, password)` in backend. Password comparison is exact string match. Frontend `handleLogin` trims username but does NOT trim password. `resetAdminPassword` only resets passwords using a hardcoded recovery key, and is only accessible via the "Forgot Password" flow -- regular users cannot reset their own password.
 
 ## Requested Changes (Diff)
 
 ### Add
-- Global Dark Mode toggle in Settings page (under Chats section)
-- When dark mode is ON: entire app switches to black/dark background with proper readable text (white/light)
-- Dark mode state saved in localStorage (`chatme_dark_mode`) so it persists across sessions
-- All screens affected: home, chatList, activeChat, profile, settings, admin, login, splash
+- Backend: new `resetPassword(token, newPassword)` function so any logged-in user can change their password (not needed for this fix, but kept in mind)
+- Backend: new `resetPasswordByUsername(username, newPassword, recoveryKey)` that works for ALL users (not just admin), keeping the same recovery key mechanism
 
 ### Modify
-- App.tsx: add `darkMode` state, read from localStorage, pass as prop down to all views
-- SettingsView.tsx: add Dark Mode switch row in Chats section
-- All view components: accept `darkMode` prop and apply dark backgrounds/text colors conditionally
-- index.css: add `.dark` class with dark CSS variables
+- Backend `loginWithPassword`: trim both username and password before comparison to avoid whitespace mismatch
+- Backend `registerWithPassword`: trim username, password, name before storing
+- Frontend `LoginScreen`: trim password in `handleLogin` and `handleRegister` before sending to backend
+- Frontend `LoginScreen` reset tab: clearly label it works for ALL users (not just admin), improve error messages
 
 ### Remove
 - Nothing removed
 
 ## Implementation Plan
-1. Add `darkMode: boolean` state to App.tsx, initialized from localStorage
-2. Apply `dark` class to root `<div>` in App.tsx when darkMode is true
-3. Update `index.css` with dark mode CSS variable overrides under `.dark` class
-4. Pass `darkMode` + `onDarkModeChange` props to SettingsView
-5. Add Dark Mode toggle switch in SettingsView Chats section
-6. Update all major components (ChatList, ActiveChat, ProfileView, TopNav, BottomNav, LoginScreen, CentralDashboard, LeftSidebar, AdminView, ChatPanel, Footer) to use `darkMode` prop for conditional styling
-7. Validate build
+1. Update backend `loginWithPassword` to trim password before comparison
+2. Update backend `registerWithPassword` to trim and store trimmed password
+3. Update `resetAdminPassword` to work for all users (rename effectively to resetPasswordByUsername, keeping same function name for compatibility)
+4. Update frontend to trim password fields before all backend calls
+5. Improve reset UI labels so users know it works for everyone

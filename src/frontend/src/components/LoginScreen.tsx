@@ -129,7 +129,11 @@ export default function LoginScreen({
       if ("ok" in result) {
         onLogin(result.ok.token, result.ok.user);
       } else {
-        setError(`${result.err} ❌`);
+        let errMsg = result.err;
+        if (errMsg.toLowerCase().includes("wrong password")) {
+          errMsg = `${result.err} — Password bhool gaye? "Reset karo" se reset kar sakte ho ❌`;
+        }
+        setError(errMsg);
       }
     } catch {
       setError("Could not reach server. Please try again later 📡");
@@ -666,7 +670,7 @@ export default function LoginScreen({
                   className="text-xs mt-1"
                   style={{ color: darkMode ? "#888" : "#7A6E6E" }}
                 >
-                  Apna username aur naya password daalo
+                  Koi bhi user apna password yahan reset kar sakta hai 🌸
                 </p>
               </div>
               <div className="flex flex-col gap-1">

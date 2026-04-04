@@ -408,14 +408,17 @@ persistent actor ChatMe {
   // ===== Username + Password login =====
 
   public func registerWithPassword(username: Text, password: Text, name: Text): async RegisterResult {
-    if (username == "" or password == "" or name == "") return #err("All fields required");
-    if (not isValidUsername(username)) return #err("Username must be 3-20 characters: letters, numbers, underscore only");
-    if (password.size() < 4) return #err("Password must be at least 4 characters");
-    if (not isUsernameAvailableInternal(username, null)) return #err("Username already taken. Please choose another.");
+    let uname = Text.trim(username, #char ' ');
+    let pass = Text.trim(password, #char ' ');
+    let dname = Text.trim(name, #char ' ');
+    if (uname == "" or pass == "" or dname == "") return #err("All fields required");
+    if (not isValidUsername(uname)) return #err("Username must be 3-20 characters: letters, numbers, underscore only");
+    if (pass.size() < 4) return #err("Password must be at least 4 characters");
+    if (not isUsernameAvailableInternal(uname, null)) return #err("Username already taken. Please choose another.");
     let uid = nextUserId;
     nextUserId += 1;
     let user: User = {
-      id = uid; username = username; password = password; name = name;
+      id = uid; username = uname; password = pass; name = dname;
       about = "Hey there! I am using Chat Me";
       avatarUrl = ""; phone = ""; joinedAt = Time.now(); isAdmin = uid == 1;
     };
@@ -427,11 +430,24 @@ persistent actor ChatMe {
   };
 
   public func loginWithPassword(username: Text, password: Text): async LoginResult {
-    if (username == "" or password == "") return #err("All fields required");
-    switch (findUserByUsername(username)) {
+    let uname = Text.trim(username, #char ' ');
+    let pass = Text.trim(password, #char ' ');
+    if (uname == "" or pass == "") return #err("All fields required");
+    switch (findUserByUsername(uname)) {
       case null { #err("Username not found. Please check or register first.") };
       case (?u) {
-        if (u.password != password) return #err("Wrong password. Please try again.");
+        // Try trimmed password, also try stored password trimmed (for backwards compat)
+        let storedTrimmed = Text.trim(u.password, #char ' ');
+        if (u.password != pass and storedTrimmed != pass) return #err("Wrong password. Please try again.");
+        // Auto-fix stored password if it has spaces
+        if (u.password != storedTrimmed) {
+          let fixed: User = {
+            id = u.id; username = u.username; password = storedTrimmed;
+            name = u.name; about = u.about; avatarUrl = u.avatarUrl;
+            phone = u.phone; joinedAt = u.joinedAt; isAdmin = u.isAdmin;
+          };
+          usersById.put(u.id, fixed);
+        };
         let token = makeToken(u.id);
         sessions.put(token, u.id);
         lastSeen.put(u.id, Time.now());
@@ -828,20 +844,24 @@ persistent actor ChatMe {
     #err("Phone not found");
   };
 
-  // Admin password reset - for account recovery
+  // Password reset - works for ALL users (not just admin), uses recovery key for verification
   public func resetAdminPassword(targetUsername: Text, newPassword: Text, recoveryKey: Text): async Text {
     if (recoveryKey != "CHATME_ADMIN_RECOVERY_2026") return "Invalid recovery key";
+    let trimUser = Text.trim(targetUsername, #char ' ');
+    let trimPass = Text.trim(newPassword, #char ' ');
+    if (trimPass.size() < 4) return "Password must be at least 4 characters";
+    let lower = toLower(trimUser);
     for ((uid, u) in usersById.entries()) {
-      if (u.username == targetUsername) {
+      if (toLower(u.username) == lower) {
         let updated: User = {
-          id = u.id; username = u.username; password = newPassword;
+          id = u.id; username = u.username; password = trimPass;
           name = u.name; about = u.about; avatarUrl = u.avatarUrl;
           phone = u.phone; joinedAt = u.joinedAt; isAdmin = u.isAdmin;
         };
         usersById.put(uid, updated);
-        return "Password reset successful for " # targetUsername;
+        return "Password reset successful for " # u.username;
       };
     };
-    return "Username not found: " # targetUsername;
+    return "Username not found: " # trimUser;
   };
 };
