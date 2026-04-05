@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import type { PublicUser } from "../backend.d";
-import { withRetry } from "../lib/actor";
+import { getActor, withRetry } from "../lib/actor";
 
 interface LoginScreenProps {
   onLogin: (token: string, user: PublicUser) => void;
@@ -102,7 +102,6 @@ export default function LoginScreen({
   ];
 
   const handleLogin = async () => {
-    // Strip ALL whitespace including newlines/tabs from phone keyboards
     const uname = loginUsername.replace(/\s/g, "");
     const pass = loginPassword.replace(/\s/g, "");
     if (!uname) {
@@ -137,9 +136,6 @@ export default function LoginScreen({
           errMsg = `Galat password. Neeche "Reset karo 🔑" se password change kar sakte ho.`;
         }
         setError(errMsg);
-        if (errMsg.toLowerCase().includes("reset")) {
-          setShowDemoBtn(false);
-        }
       }
     } catch {
       setError(
@@ -198,6 +194,13 @@ export default function LoginScreen({
         return actor.registerWithPassword(uname, pass, name);
       });
       if ("ok" in result) {
+        // Send Aanya's welcome message to the new user (fire-and-forget)
+        try {
+          const actor = await getActor();
+          actor.sendAanyaWelcome(result.ok.userId).catch(() => {});
+        } catch {
+          // silent — don't block registration
+        }
         try {
           const profileResult = await withRetry((actor) =>
             actor.getMyProfile(result.ok.token),
@@ -245,7 +248,6 @@ export default function LoginScreen({
     setLoading(true);
     setResetMsg("Reset ho raha hai... 💫");
     try {
-      // Use forceResetPassword directly with retry — no nested try/catch fallback
       const result = await withRetry((actor) =>
         actor.forceResetPassword(uname, np),
       );
@@ -256,7 +258,6 @@ export default function LoginScreen({
         setResetMsg("✅ Password reset ho gaya! Ab login karo.");
         setTimeout(() => {
           setTab("login");
-          // Pre-fill the username so user can immediately log in
           setLoginUsername(uname);
           setResetMsg("");
         }, 2000);
@@ -345,7 +346,6 @@ export default function LoginScreen({
             boxShadow: "0 8px 40px rgba(255,140,159,0.15)",
           }}
         >
-          {/* Tab switcher — hidden on reset tab */}
           {tab !== "reset" && (
             <div
               className="flex rounded-2xl overflow-hidden"
@@ -404,10 +404,7 @@ export default function LoginScreen({
                 }
                 disabled={loading}
                 className="w-full py-2.5 rounded-full font-bold text-sm transition-all hover:opacity-85"
-                style={{
-                  background: "#FF8C9F",
-                  color: "#fff",
-                }}
+                style={{ background: "#FF8C9F", color: "#fff" }}
                 data-ocid="login.primary_button"
               >
                 🔄 Dobara Try Karo

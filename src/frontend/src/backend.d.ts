@@ -98,4 +98,12 @@ export interface backendInterface {
     areFriends(userId1: bigint, userId2: bigint): Promise<boolean>;
     resetAdminPassword(targetUsername: string, newPassword: string, recoveryKey: string): Promise<string>;
     forceResetPassword(targetUsername: string, newPassword: string): Promise<string>;
+    // Aanya bot functions
+    getAanyaUserId(): Promise<bigint>;
+    getAanyaProfile(): Promise<[] | [PublicUser]>;
+    sendMessageAsBot(adminToken: string, targetUserId: bigint, text: string): Promise<[] | [bigint]>;
+    sendAanyaWelcome(newUserId: bigint): Promise<void>;
+    aanyaReply(adminToken: string, targetUserId: bigint, replyText: string): Promise<[] | [bigint]>;
+    getAanyaConversations(adminToken: string): Promise<ConversationInfo[]>;
+    sendAanyaProactive(targetUserId: bigint, text: string): Promise<[] | [bigint]>;
 }

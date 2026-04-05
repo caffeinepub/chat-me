@@ -2,7 +2,14 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { Message, View } from "../App";
 import type { PublicUser } from "../backend.d";
 import { getActor, withRetry } from "../lib/actor";
+import {
+  AANYA_PERSONA,
+  getAanyaReply,
+  getTypingDelay,
+} from "../utils/AanyaBot";
 import BottomNav from "./BottomNav";
+
+const AANYA_BOT_ID = 999999n;
 
 const senderGrad: Record<string, string> = {
   Lily: "linear-gradient(135deg, #FFB6C1 0%, #C1E1FF 100%)",
@@ -190,6 +197,10 @@ export default function ActiveChat({
   const [sendError, setSendError] = useState("");
   const [sessionExpired, setSessionExpired] = useState(false);
   const [isOtherOnline, setIsOtherOnline] = useState(false);
+  const [isAanyaTyping, setIsAanyaTyping] = useState(false);
+  const aanyaHistoryRef = useRef<
+    Array<{ role: "user" | "assistant"; content: string }>
+  >([]); // Aanya conversation history
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -421,6 +432,31 @@ export default function ActiveChat({
       const converted = msgs.map(backendToMessage);
       setMessages(converted);
       lastCountRef.current = converted.length;
+
+      // Trigger Aanya AI reply if chatting with Aanya
+      const isAanyaChat = chatId.includes(AANYA_BOT_ID.toString());
+      if (isAanyaChat) {
+        const delay = getTypingDelay(text);
+        setIsAanyaTyping(true);
+        setTimeout(async () => {
+          try {
+            const reply = await getAanyaReply(aanyaHistoryRef.current, text);
+            // Update conversation history
+            aanyaHistoryRef.current = [
+              ...aanyaHistoryRef.current,
+              { role: "user" as const, content: text },
+              { role: "assistant" as const, content: reply },
+            ].slice(-20);
+            // Send reply via backend
+            const actor = await getActor();
+            await actor.sendAanyaProactive(currentUser!.id, reply);
+          } catch {
+            // silent — Aanya will try again later
+          } finally {
+            setIsAanyaTyping(false);
+          }
+        }, delay);
+      }
     } catch {
       // Revert optimistic message on network error
       setMessages((prev) => prev.filter((m) => m.id !== optimisticId));
@@ -535,6 +571,10 @@ export default function ActiveChat({
         }
         .doodle-twinkle { animation: twinkle var(--dur, 3s) ease-in-out infinite; }
         .doodle-float { animation: float var(--dur, 4s) ease-in-out infinite; }
+        @keyframes aanyaDot {
+          0%, 60%, 100% { transform: translateY(0); opacity: 0.5; }
+          30% { transform: translateY(-5px); opacity: 1; }
+        }
       `}</style>
 
       {/* Header */}
@@ -821,6 +861,54 @@ export default function ActiveChat({
             </div>
           </div>
         ))}
+        {/* Aanya typing indicator */}
+        {isAanyaTyping && (
+          <div className="flex gap-2 relative z-10 flex-row">
+            <div
+              className="w-8 h-8 rounded-full flex-shrink-0 self-start mt-5 flex items-center justify-center text-lg"
+              style={{
+                background: "linear-gradient(135deg, #FFD1DC 0%, #F0ABFC 100%)",
+                border: "1.5px solid #FF8C9F",
+              }}
+            >
+              {AANYA_PERSONA.avatar}
+            </div>
+            <div className="flex flex-col gap-0.5 max-w-[70%]">
+              <span
+                className="text-xs font-semibold px-1"
+                style={{ color: "#FF8C9F" }}
+              >
+                {AANYA_PERSONA.name}
+              </span>
+              <div
+                className="px-4 py-3"
+                style={{
+                  background: darkMode ? "#2e2e3a" : "#F0E6FF",
+                  borderRadius: "20px 20px 20px 4px",
+                  boxShadow: "0 2px 8px rgba(255,140,159,0.12)",
+                  display: "flex",
+                  gap: "5px",
+                  alignItems: "center",
+                }}
+              >
+                {[0, 150, 300].map((delay) => (
+                  <span
+                    key={delay}
+                    style={{
+                      display: "inline-block",
+                      width: "7px",
+                      height: "7px",
+                      borderRadius: "50%",
+                      background: "#FF8C9F",
+                      animation: "aanyaDot 1s infinite",
+                      animationDelay: `${delay}ms`,
+                    }}
+                  />
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
         <div ref={messagesEndRef} />
       </div>
 

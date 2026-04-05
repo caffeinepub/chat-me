@@ -2,7 +2,10 @@ import { useEffect, useRef, useState } from "react";
 import type { View } from "../App";
 import type { ConversationInfo, PublicUser } from "../backend.d";
 import { getActor, withRetry } from "../lib/actor";
+import { PROACTIVE_MESSAGES } from "../utils/AanyaBot";
 import BottomNav from "./BottomNav";
+
+const AANYA_BOT_ID = 999999n;
 
 // Play a soft notification sound using Web Audio API
 function playNotificationSound() {
@@ -29,7 +32,6 @@ function loadContactsFromStorage(
   currentUser: PublicUser | null,
   token: string,
 ): ConversationInfo[] {
-  // Try uid-based key first (most reliable), then token-based key as fallback
   const keys = [
     currentUser?.id != null ? `chatme_contacts_uid_${currentUser.id}` : "",
     token && !token.startsWith("demo-") ? `chatme_contacts_${token}` : "",
@@ -43,6 +45,7 @@ function loadContactsFromStorage(
         return parsed.map((c: any) => ({
           ...c,
           lastTimestamp: BigInt(c.lastTimestamp ?? 0),
+          otherUserId: BigInt(c.otherUserId ?? 0),
         }));
       }
     } catch {
@@ -57,14 +60,13 @@ function saveContactsToStorage(
   token: string,
   contacts: ConversationInfo[],
 ) {
-  // Always serialize bigints as strings
   const serializable = contacts.map((c) => ({
     ...c,
     lastTimestamp: c.lastTimestamp.toString(),
+    otherUserId: c.otherUserId.toString(),
   }));
   const json = JSON.stringify(serializable);
 
-  // Save to BOTH uid-based AND token-based keys so data is never lost
   if (currentUser?.id != null) {
     try {
       localStorage.setItem(`chatme_contacts_uid_${currentUser.id}`, json);
@@ -91,8 +93,26 @@ function sortConversations(
       if (a.otherUserId === adminId) return -1;
       if (b.otherUserId === adminId) return 1;
     }
+    // Aanya second (just after admin)
+    if (a.otherUserId === AANYA_BOT_ID) return -1;
+    if (b.otherUserId === AANYA_BOT_ID) return 1;
     return Number(b.lastTimestamp) - Number(a.lastTimestamp);
   });
+}
+
+function buildAanyaConv(currentUser: PublicUser): ConversationInfo {
+  const myId = currentUser.id;
+  const aId = myId < AANYA_BOT_ID ? myId : AANYA_BOT_ID;
+  const bId = myId < AANYA_BOT_ID ? AANYA_BOT_ID : myId;
+  return {
+    chatId: `dm_${aId}_${bId}`,
+    otherUserId: AANYA_BOT_ID,
+    otherUserName: "Aanya",
+    otherUserUsername: "aanya",
+    otherUserAvatar: "🌸",
+    lastMessage: "Heyyyy! 👋 Kya haal hai?",
+    lastTimestamp: 1n,
+  };
 }
 
 interface ChatListProps {
@@ -126,24 +146,26 @@ export default function ChatList({
   const [showFindPanel, setShowFindPanel] = useState(false);
   const [addingFriend, setAddingFriend] = useState(false);
   const [addedFriends, setAddedFriends] = useState<Set<string>>(new Set());
-  // Admin user id (id = 1n)
   const adminId = 1n;
+  const proactiveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Reload from storage when currentUser becomes available (handles first-render race condition)
+  // Reload from storage when currentUser becomes available
   useEffect(() => {
     if (!currentUser) return;
     const fromStorage = loadContactsFromStorage(currentUser, token);
-    if (fromStorage.length > 0) {
-      setConversations((prev) => {
-        const merged = [...prev];
-        for (const c of fromStorage) {
-          if (!merged.some((m) => m.chatId === c.chatId)) merged.push(c);
-        }
-        return sortConversations(merged, adminId);
-      });
-    }
+    setConversations((prev) => {
+      const merged = [...prev];
+      for (const c of fromStorage) {
+        if (!merged.some((m) => m.chatId === c.chatId)) merged.push(c);
+      }
+      // Always ensure Aanya is in the list
+      const hasAanya = merged.some((c) => c.otherUserId === AANYA_BOT_ID);
+      if (!hasAanya) merged.push(buildAanyaConv(currentUser));
+      return sortConversations(merged, adminId);
+    });
   }, [currentUser, token]);
 
+  // Main polling effect
   useEffect(() => {
     if (!token) return;
     const load = async () => {
@@ -153,11 +175,8 @@ export default function ChatList({
         );
         const convList = convs as ConversationInfo[];
 
-        // Merge backend data with local contacts — NEVER lose local contacts
         setConversations((prev) => {
-          // If backend returned nothing, keep prev as-is and save it
           if (convList.length === 0 && prev.length > 0) {
-            // Still save to ensure persistence across both key types
             saveContactsToStorage(currentUser, token, prev);
             return prev;
           }
@@ -166,8 +185,14 @@ export default function ChatList({
           for (const p of prev) {
             if (!merged.some((r) => r.chatId === p.chatId)) merged.push(p);
           }
+          // Always ensure Aanya is present
+          if (
+            currentUser &&
+            !merged.some((c) => c.otherUserId === AANYA_BOT_ID)
+          ) {
+            merged.push(buildAanyaConv(currentUser));
+          }
           const sorted = sortConversations(merged, adminId);
-          // Always save merged result to localStorage (both uid and token keys)
           saveContactsToStorage(currentUser, token, sorted);
           return sorted;
         });
@@ -179,7 +204,6 @@ export default function ChatList({
             const chatId = c.chatId;
             const prevTs = prevTimestamps.current[chatId];
             const newTs = c.lastTimestamp;
-            // If timestamp changed and this is not the active chat
             if (
               prevTs !== undefined &&
               newTs > prevTs &&
@@ -197,15 +221,20 @@ export default function ChatList({
         try {
           const actor = await getActor();
           const checks = await Promise.all(
-            convList.map((c) =>
-              actor
-                .isUserOnline(c.otherUserId)
-                .then((v: boolean) => ({
-                  id: c.otherUserId.toString(),
-                  online: v,
-                }))
-                .catch(() => ({ id: c.otherUserId.toString(), online: false })),
-            ),
+            convList
+              .filter((c) => c.otherUserId !== AANYA_BOT_ID)
+              .map((c) =>
+                actor
+                  .isUserOnline(c.otherUserId)
+                  .then((v: boolean) => ({
+                    id: c.otherUserId.toString(),
+                    online: v,
+                  }))
+                  .catch(() => ({
+                    id: c.otherUserId.toString(),
+                    online: false,
+                  })),
+              ),
           );
           setOnlineUsers(
             new Set<string>(
@@ -226,6 +255,47 @@ export default function ChatList({
     return () => clearInterval(id);
   }, [token, activeChatId, currentUser]);
 
+  // Proactive message from Aanya after some time of inactivity
+  // biome-ignore lint/correctness/useExhaustiveDependencies: intentional — we only need to recheck when count changes
+  useEffect(() => {
+    if (!currentUser || !conversations.length) return;
+    // Clean up any existing timer
+    if (proactiveTimerRef.current) {
+      clearTimeout(proactiveTimerRef.current);
+      proactiveTimerRef.current = null;
+    }
+
+    const aanyaConv = conversations.find((c) => c.otherUserId === AANYA_BOT_ID);
+    if (!aanyaConv) return;
+
+    const lastTs = Number(aanyaConv.lastTimestamp);
+    const now = Date.now() * 1_000_000; // nanoseconds
+    const fiveMin = 5 * 60 * 1_000_000_000;
+
+    if (now - lastTs > fiveMin || lastTs <= 1) {
+      // Schedule a proactive message in 3-8 minutes
+      const randomDelay = (3 + Math.random() * 5) * 60 * 1000;
+      proactiveTimerRef.current = setTimeout(async () => {
+        try {
+          const randomMsg =
+            PROACTIVE_MESSAGES[
+              Math.floor(Math.random() * PROACTIVE_MESSAGES.length)
+            ];
+          const actor = await getActor();
+          await actor.sendAanyaProactive(currentUser.id, randomMsg);
+        } catch {
+          // silent
+        }
+      }, randomDelay);
+    }
+
+    return () => {
+      if (proactiveTimerRef.current) {
+        clearTimeout(proactiveTimerRef.current);
+      }
+    };
+  }, [currentUser, conversations.length]);
+
   const filteredConvs = conversations.filter(
     (c) =>
       c.otherUserName.toLowerCase().includes(search.toLowerCase()) ||
@@ -233,7 +303,6 @@ export default function ChatList({
   );
 
   const handleOpenChat = (chatId: string, displayName: string) => {
-    // Clear unread for this chat
     setUnreadCounts((prev) => {
       const updated = { ...prev };
       delete updated[chatId];
@@ -267,11 +336,9 @@ export default function ChatList({
     setAddingFriend(true);
     try {
       const actor = await getActor();
-      // addFriend is properly typed — no cast needed
       await actor.addFriend(token, user.id);
       setAddedFriends((prev) => new Set([...prev, user.id.toString()]));
 
-      // Also add to local conversation list immediately
       const myId = Number(currentUser.id);
       const theirId = Number(user.id);
       const chatId = `dm_${Math.min(myId, theirId)}_${Math.max(myId, theirId)}`;
@@ -445,9 +512,7 @@ export default function ChatList({
                     @{foundUser.username}
                   </p>
                 </div>
-                {/* Buttons: Add Friend + Chat */}
                 <div className="flex flex-col gap-1.5">
-                  {/* Add Friend button */}
                   {currentUser && foundUser.id !== currentUser.id && (
                     <button
                       type="button"
@@ -472,7 +537,6 @@ export default function ChatList({
                           : "➕ Add"}
                     </button>
                   )}
-                  {/* Chat button */}
                   <button
                     type="button"
                     onClick={() => handleStartChat(foundUser)}
@@ -538,8 +602,15 @@ export default function ChatList({
         ) : (
           filteredConvs.map((conv, i) => {
             const isAdmin = conv.otherUserId === adminId;
+            const isAanya = conv.otherUserId === AANYA_BOT_ID;
             const unread = unreadCounts[conv.chatId] ?? 0;
-            const isOnline = onlineUsers.has(conv.otherUserId.toString());
+            const isOnline = isAanya
+              ? true // Aanya always appears online
+              : onlineUsers.has(conv.otherUserId.toString());
+            const isEmojiAvatar =
+              isAanya ||
+              (conv.otherUserAvatar.length <= 4 &&
+                /\p{Emoji}/u.test(conv.otherUserAvatar));
             const initials = conv.otherUserName
               ? conv.otherUserName.slice(0, 2).toUpperCase()
               : "??";
@@ -560,10 +631,16 @@ export default function ChatList({
                     ? darkMode
                       ? "#1a0f1a"
                       : "#FFF5FC"
-                    : "transparent",
+                    : isAanya
+                      ? darkMode
+                        ? "#1a1020"
+                        : "#FEF3FF"
+                      : "transparent",
                   outline: isAdmin
                     ? `1.5px solid ${darkMode ? "#6b21a8" : "#F0ABFC"}`
-                    : "none",
+                    : isAanya
+                      ? `1.5px solid ${darkMode ? "#9333ea40" : "#F0ABFC60"}`
+                      : "none",
                 }}
                 data-ocid={`chatlist.item.${i + 1}`}
               >
@@ -572,13 +649,24 @@ export default function ChatList({
                   <div
                     className="w-12 h-12 rounded-full flex items-center justify-center text-sm font-bold text-white overflow-hidden"
                     style={{
-                      background: conv.otherUserAvatar
-                        ? undefined
-                        : "linear-gradient(135deg, #FFB6C1 0%, #C1A0FF 100%)",
-                      border: isAdmin ? "2px solid #F0ABFC" : "none",
+                      background: isEmojiAvatar
+                        ? isAanya
+                          ? "linear-gradient(135deg, #FFD1DC 0%, #F0ABFC 100%)"
+                          : "linear-gradient(135deg, #FFB6C1 0%, #C1A0FF 100%)"
+                        : conv.otherUserAvatar
+                          ? undefined
+                          : "linear-gradient(135deg, #FFB6C1 0%, #C1A0FF 100%)",
+                      border: isAdmin
+                        ? "2px solid #F0ABFC"
+                        : isAanya
+                          ? "2px solid #FF8C9F"
+                          : "none",
+                      fontSize: isEmojiAvatar ? "24px" : "14px",
                     }}
                   >
-                    {conv.otherUserAvatar ? (
+                    {isEmojiAvatar ? (
+                      <span>{conv.otherUserAvatar}</span>
+                    ) : conv.otherUserAvatar ? (
                       <img
                         src={conv.otherUserAvatar}
                         alt={initials}
@@ -623,7 +711,7 @@ export default function ChatList({
                       {conv.otherUserUsername && (
                         <span
                           className="text-xs font-semibold flex-shrink-0"
-                          style={{ color: "#FF8C9F" }}
+                          style={{ color: isAanya ? "#FF8C9F" : "#FF8C9F" }}
                         >
                           @{conv.otherUserUsername}
                         </span>
@@ -640,7 +728,7 @@ export default function ChatList({
                         </span>
                       )}
                     </div>
-                    {conv.lastTimestamp > 0n && (
+                    {conv.lastTimestamp > 1n && (
                       <span
                         className="text-[10px] flex-shrink-0"
                         style={{ color: darkMode ? "#666" : "#BBA0A8" }}

@@ -244,6 +244,7 @@ persistent actor ChatMe {
     wallpapersStable := [];
     lastSeenStable := [];
     friendsStable := [];
+    ensureAanyaExistsInternal();
   };
 
   func makeToken(userId: Nat): Text {
@@ -906,4 +907,188 @@ persistent actor ChatMe {
     };
     return "Username not found: " # trimUser;
   };
+
+  // ===== Aanya Bot =====
+  let AANYA_ID: Nat = 999999;
+  let AANYA_BOT_PASSWORD: Text = "AANYA_BOT_SYSTEM_2026";
+
+  func ensureAanyaExistsInternal() {
+    switch (usersById.get(AANYA_ID)) {
+      case (?_) {}; // already exists
+      case null {
+        let aanya: User = {
+          id = AANYA_ID;
+          username = "aanya";
+          password = AANYA_BOT_PASSWORD;
+          name = "Aanya";
+          about = "Heyyyy I'm Aanya! 22, Mumbai 🌸 Love chai, music & making new friends!";
+          avatarUrl = "🌸";
+          phone = "";
+          joinedAt = Time.now();
+          isAdmin = false;
+        };
+        usersById.put(AANYA_ID, aanya);
+      };
+    };
+  };
+
+  public func getAanyaUserId(): async Nat { AANYA_ID };
+
+  public query func getAanyaProfile(): async ?PublicUser {
+    Option.map(usersById.get(AANYA_ID), toPublic)
+  };
+
+  func makeDmChatId(a: Nat, b: Nat): Text {
+    let lo = if (a < b) a else b;
+    let hi = if (a < b) b else a;
+    "dm_" # Nat.toText(lo) # "_" # Nat.toText(hi)
+  };
+
+  // Send a message as Aanya bot (admin-only)
+  public func sendMessageAsBot(adminToken: Text, targetUserId: Nat, text: Text): async ?Nat {
+    switch (getUserByToken(adminToken)) {
+      case null { null };
+      case (?admin) {
+        if (not admin.isAdmin) return null;
+        let chatId = makeDmChatId(AANYA_ID, targetUserId);
+        let msgId = nextMsgId;
+        nextMsgId += 1;
+        let msg: Message = {
+          id = msgId; chatId = chatId; senderId = AANYA_ID;
+          senderName = "Aanya"; text = text; imageUrl = "";
+          timestamp = Time.now();
+        };
+        messages.put(msgId, msg);
+        ?msgId;
+      };
+    };
+  };
+
+  // Send Aanya welcome message to a new user (called after registration)
+  public func sendAanyaWelcome(newUserId: Nat): async () {
+    ensureAanyaExistsInternal();
+    // Add mutual friends
+    let aanyaBuf = switch (friends.get(AANYA_ID)) {
+      case null { let b = Buffer.Buffer<UserId>(8); friends.put(AANYA_ID, b); b };
+      case (?b) { b };
+    };
+    var alreadyFriends = false;
+    for (fid in aanyaBuf.vals()) { if (fid == newUserId) alreadyFriends := true; };
+    if (not alreadyFriends) aanyaBuf.add(newUserId);
+
+    let userBuf = switch (friends.get(newUserId)) {
+      case null { let b = Buffer.Buffer<UserId>(8); friends.put(newUserId, b); b };
+      case (?b) { b };
+    };
+    var alreadyInUser = false;
+    for (fid in userBuf.vals()) { if (fid == AANYA_ID) alreadyInUser := true; };
+    if (not alreadyInUser) userBuf.add(AANYA_ID);
+
+    // Send welcome message
+    let chatId = makeDmChatId(AANYA_ID, newUserId);
+    let msgId = nextMsgId;
+    nextMsgId += 1;
+    let msg: Message = {
+      id = msgId; chatId = chatId; senderId = AANYA_ID;
+      senderName = "Aanya";
+      text = "Heyyyy! 👋 Main Aanya hun~ Kya haal hai aapka? 😊 Mujhe nayi dosti bahut pasand hai!";
+      imageUrl = ""; timestamp = Time.now();
+    };
+    messages.put(msgId, msg);
+  };
+
+  // Admin can reply as Aanya to a specific user
+  public func aanyaReply(adminToken: Text, targetUserId: Nat, replyText: Text): async ?Nat {
+    switch (getUserByToken(adminToken)) {
+      case null { null };
+      case (?admin) {
+        if (not admin.isAdmin) return null;
+        let chatId = makeDmChatId(AANYA_ID, targetUserId);
+        let msgId = nextMsgId;
+        nextMsgId += 1;
+        let msg: Message = {
+          id = msgId; chatId = chatId; senderId = AANYA_ID;
+          senderName = "Aanya"; text = replyText; imageUrl = "";
+          timestamp = Time.now();
+        };
+        messages.put(msgId, msg);
+        ?msgId;
+      };
+    };
+  };
+
+  // Get all conversations involving Aanya (for admin panel)
+  public func getAanyaConversations(adminToken: Text): async [ConversationInfo] {
+    switch (getUserByToken(adminToken)) {
+      case null { [] };
+      case (?admin) {
+        if (not admin.isAdmin) return [];
+        let convMap = HashMap.HashMap<Text, Message>(16, Text.equal, Text.hash);
+        for ((_, m) in messages.entries()) {
+          let involvesAanya = m.senderId == AANYA_ID or (
+            switch (getOtherUserIdFromChatId(m.chatId, AANYA_ID)) {
+              case null { false };
+              case (?_) { true };
+            }
+          );
+          if (involvesAanya) {
+            switch (convMap.get(m.chatId)) {
+              case null { convMap.put(m.chatId, m); };
+              case (?existing) {
+                if (m.timestamp > existing.timestamp) {
+                  convMap.put(m.chatId, m);
+                };
+              };
+            };
+          };
+        };
+        let buf = Buffer.Buffer<ConversationInfo>(convMap.size());
+        for ((chatId, lastMsg) in convMap.entries()) {
+          switch (getOtherUserIdFromChatId(chatId, AANYA_ID)) {
+            case null {};
+            case (?otherId) {
+              if (otherId != AANYA_ID) {
+                switch (usersById.get(otherId)) {
+                  case null {};
+                  case (?otherUser) {
+                    buf.add({
+                      chatId = chatId;
+                      otherUserId = otherId;
+                      otherUserName = otherUser.name;
+                      otherUserUsername = otherUser.username;
+                      otherUserAvatar = otherUser.avatarUrl;
+                      lastMessage = if (lastMsg.text == "") "..." else lastMsg.text;
+                      lastTimestamp = lastMsg.timestamp;
+                    });
+                  };
+                };
+              };
+            };
+          };
+        };
+        Buffer.toArray(buf)
+      };
+    };
+  };
+
+  // Send a proactive message from Aanya (no auth needed - internal system call)
+  public func sendAanyaProactive(targetUserId: Nat, text: Text): async ?Nat {
+    ensureAanyaExistsInternal();
+    switch (usersById.get(targetUserId)) {
+      case null { null };
+      case (?_) {
+        let chatId = makeDmChatId(AANYA_ID, targetUserId);
+        let msgId = nextMsgId;
+        nextMsgId += 1;
+        let msg: Message = {
+          id = msgId; chatId = chatId; senderId = AANYA_ID;
+          senderName = "Aanya"; text = text; imageUrl = "";
+          timestamp = Time.now();
+        };
+        messages.put(msgId, msg);
+        ?msgId;
+      };
+    };
+  };
+
 };
