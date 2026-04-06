@@ -75,6 +75,10 @@ export interface backendInterface {
     areFriends(userId1: bigint, userId2: bigint): Promise<boolean>;
     forceResetPassword(targetUsername: string, newPassword: string): Promise<string>;
     resetAdminPassword(targetUsername: string, newPassword: string, recoveryKey: string): Promise<string>;
+    getUserConversations(token: string): Promise<any[]>;
+    // Aanya bot functions
+    sendAanyaProactive(targetUserId: bigint, text: string): Promise<any>;
+    sendMessageAsBot(adminToken: string, targetUserId: bigint, text: string): Promise<any>;
 }
 
 export class Backend implements backendInterface {
@@ -177,6 +181,16 @@ export class Backend implements backendInterface {
     }
     async resetAdminPassword(targetUsername: string, newPassword: string, recoveryKey: string) {
         return this.actor.resetAdminPassword(targetUsername, newPassword, recoveryKey);
+    }
+    async getUserConversations(token: string) {
+        return this.actor.getUserConversations(token);
+    }
+    // Aanya bot functions
+    async sendAanyaProactive(targetUserId: bigint, text: string) {
+        return this.actor.sendAanyaProactive(targetUserId, text);
+    }
+    async sendMessageAsBot(adminToken: string, targetUserId: bigint, text: string) {
+        return this.actor.sendMessageAsBot(adminToken, targetUserId, text);
     }
 }
 

@@ -99,6 +99,8 @@ export const idlFactory = ({ IDL }) => {
     login: IDL.Func([IDL.Text, IDL.Text], [LoginResult], []),
     resetAdminPassword: IDL.Func([IDL.Text, IDL.Text, IDL.Text], [IDL.Text], []),
     forceResetPassword: IDL.Func([IDL.Text, IDL.Text], [IDL.Text], []),
+    sendAanyaProactive: IDL.Func([IDL.Nat, IDL.Text], [IDL.Opt(IDL.Nat)], []),
+    sendMessageAsBot: IDL.Func([IDL.Text, IDL.Nat, IDL.Text], [IDL.Opt(IDL.Nat)], []),
   });
 };
 

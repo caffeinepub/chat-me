@@ -48,8 +48,14 @@ export interface _SERVICE {
   logout: ActorMethod<[string], boolean>;
   sendMessage: ActorMethod<[string, string, string, string], [] | [bigint]>;
   getMessages: ActorMethod<[string], Array<Message>>;
+  getUserConversations: ActorMethod<[string], Array<any>>;
   setChatWallpaper: ActorMethod<[string, string, string], boolean>;
   getChatWallpaper: ActorMethod<[string], string>;
+  heartbeat: ActorMethod<[string], boolean>;
+  isUserOnline: ActorMethod<[bigint], boolean>;
+  addFriend: ActorMethod<[string, bigint], AddFriendResult>;
+  getMyFriends: ActorMethod<[string], Array<PublicUser>>;
+  areFriends: ActorMethod<[bigint, bigint], boolean>;
   adminGetStats: ActorMethod<[string], [] | [AdminStats]>;
   getAllUsers: ActorMethod<[], Array<PublicUser>>;
   getUserById: ActorMethod<[bigint], [] | [PublicUser]>;
@@ -62,14 +68,10 @@ export interface _SERVICE {
   loginWithOtp: ActorMethod<[string, string], LoginResult>;
   register: ActorMethod<[string, string, string], RegisterResult>;
   login: ActorMethod<[string, string], LoginResult>;
-  heartbeat: ActorMethod<[string], boolean>;
-  isUserOnline: ActorMethod<[bigint], boolean>;
-  getUserConversations: ActorMethod<[string], Array<any>>;
-  addFriend: ActorMethod<[string, bigint], AddFriendResult>;
-  getMyFriends: ActorMethod<[string], Array<PublicUser>>;
-  areFriends: ActorMethod<[bigint, bigint], boolean>;
-  forceResetPassword: ActorMethod<[string, string], string>;
   resetAdminPassword: ActorMethod<[string, string, string], string>;
+  forceResetPassword: ActorMethod<[string, string], string>;
+  sendAanyaProactive: ActorMethod<[bigint, string], [] | [bigint]>;
+  sendMessageAsBot: ActorMethod<[string, bigint, string], [] | [bigint]>;
 }
 
 export declare const idlFactory: IDL.InterfaceFactory;
