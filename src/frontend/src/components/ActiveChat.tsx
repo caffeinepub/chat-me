@@ -9,7 +9,7 @@ import {
 } from "../utils/AanyaBot";
 import BottomNav from "./BottomNav";
 
-const AANYA_BOT_ID = 999999n;
+const _AANYA_BOT_ID = 999999n;
 
 const senderGrad: Record<string, string> = {
   Lily: "linear-gradient(135deg, #FFB6C1 0%, #C1E1FF 100%)",
@@ -208,6 +208,17 @@ export default function ActiveChat({
   const mediaPickerRef = useRef<HTMLDivElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const lastCountRef = useRef(0);
+  const rawMessagesRef = useRef<
+    Array<{
+      id: bigint;
+      chatId: string;
+      senderId: bigint;
+      senderName: string;
+      text: string;
+      imageUrl: string;
+      timestamp: bigint;
+    }>
+  >([]);
   const currentUserRef = useRef(currentUser);
   currentUserRef.current = currentUser;
 
@@ -287,9 +298,7 @@ export default function ActiveChat({
       imageUrl: string;
       timestamp: bigint;
     }): Message => {
-      const isOwn = currentUserRef.current
-        ? m.senderId === currentUserRef.current.id
-        : false;
+      const isOwn = currentUser ? m.senderId === currentUser.id : false;
       return {
         id: Number(m.id),
         sender: m.senderName,
@@ -303,13 +312,14 @@ export default function ActiveChat({
         status: isOwn ? "delivered" : undefined,
       };
     },
-    [],
+    [currentUser],
   );
 
   useEffect(() => {
     const load = async () => {
       try {
         const msgs = await withRetry((actor) => actor.getMessages(chatId));
+        rawMessagesRef.current = msgs;
         const converted = msgs.map(backendToMessage);
         setMessages(converted);
         lastCountRef.current = converted.length;
@@ -325,6 +335,7 @@ export default function ActiveChat({
       try {
         const msgs = await withRetry((actor) => actor.getMessages(chatId));
         if (msgs.length !== lastCountRef.current) {
+          rawMessagesRef.current = msgs;
           const converted = msgs.map(backendToMessage);
           setMessages(converted);
           lastCountRef.current = converted.length;
@@ -335,6 +346,15 @@ export default function ActiveChat({
     }, 1000);
     return () => clearInterval(interval);
   }, [chatId, backendToMessage]);
+
+  // Re-process messages when currentUser becomes available (fixes left/right sides)
+  // biome-ignore lint/correctness/useExhaustiveDependencies: intentionally only re-run on currentUser.id change
+  useEffect(() => {
+    if (currentUser && rawMessagesRef.current.length > 0) {
+      const converted = rawMessagesRef.current.map(backendToMessage);
+      setMessages(converted);
+    }
+  }, [currentUser?.id, backendToMessage]);
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: scroll on new messages
   useEffect(() => {
@@ -434,7 +454,7 @@ export default function ActiveChat({
       lastCountRef.current = converted.length;
 
       // Trigger Aanya AI reply if chatting with Aanya
-      const isAanyaChat = chatId.includes(AANYA_BOT_ID.toString());
+      const isAanyaChat = /(^|_)999999($|_)/.test(chatId);
       if (isAanyaChat) {
         const delay = getTypingDelay(text);
         setIsAanyaTyping(true);
@@ -455,8 +475,8 @@ export default function ActiveChat({
             const aanyaConverted = aanyaMsgs.map(backendToMessage);
             setMessages(aanyaConverted);
             lastCountRef.current = aanyaConverted.length;
-          } catch {
-            // silent — Aanya will try again later
+          } catch (aanyaErr) {
+            console.error("Aanya reply failed:", aanyaErr);
           } finally {
             setIsAanyaTyping(false);
           }
@@ -1115,14 +1135,14 @@ export default function ActiveChat({
         <button
           type="button"
           onClick={handleSend}
-          className="w-10 h-10 rounded-full flex items-center justify-center text-white hover:opacity-85 transition-all flex-shrink-0"
+          className="w-12 h-12 rounded-full flex items-center justify-center text-white hover:opacity-85 transition-all flex-shrink-0"
           style={{ background: "#FF8C9F" }}
           data-ocid="activechat.submit_button"
           aria-label="Send message"
         >
           <svg
-            width="18"
-            height="18"
+            width="22"
+            height="22"
             viewBox="0 0 18 18"
             fill="none"
             aria-hidden="true"
