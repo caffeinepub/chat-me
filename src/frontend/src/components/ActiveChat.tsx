@@ -450,6 +450,11 @@ export default function ActiveChat({
             // Send reply via backend
             const actor = await getActor();
             await actor.sendAanyaProactive(currentUser!.id, reply);
+            // Refresh messages so Aanya reply appears immediately
+            const aanyaMsgs = await withRetry((a) => a.getMessages(chatId));
+            const aanyaConverted = aanyaMsgs.map(backendToMessage);
+            setMessages(aanyaConverted);
+            lastCountRef.current = aanyaConverted.length;
           } catch {
             // silent — Aanya will try again later
           } finally {
