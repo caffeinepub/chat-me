@@ -193,8 +193,8 @@ export default function ProfileView({
         // Re-fetch from backend to confirm the change actually persisted
         try {
           const profileResult = await actor.getMyProfile(token);
-          if (profileResult && profileResult.length > 0) {
-            const freshUser = profileResult[0] as PublicUser;
+          if (profileResult) {
+            const freshUser = profileResult as PublicUser;
             onUserUpdate(freshUser);
           } else {
             if (currentUser)

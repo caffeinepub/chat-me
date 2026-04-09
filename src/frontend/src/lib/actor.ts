@@ -1,5 +1,6 @@
+import { createActorWithConfig } from "@caffeineai/core-infrastructure";
+import { createActor } from "../backend";
 import type { backendInterface as BackendInterface } from "../backend.d";
-import { createActorWithConfig } from "../config";
 
 let cachedActor: BackendInterface | null = null;
 let actorCreatePromise: Promise<BackendInterface> | null = null;
@@ -20,7 +21,7 @@ function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
 export async function getActor(): Promise<BackendInterface> {
   if (cachedActor) return cachedActor;
   if (actorCreatePromise) return actorCreatePromise;
-  actorCreatePromise = withTimeout(createActorWithConfig(), 15000)
+  actorCreatePromise = withTimeout(createActorWithConfig(createActor), 15000)
     .then((a) => {
       cachedActor = a as unknown as BackendInterface;
       actorCreatePromise = null;

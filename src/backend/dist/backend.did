@@ -1,0 +1,127 @@
+type UserId = nat;
+type TransformArgs = 
+ record {
+   context: blob;
+   response: HttpResponsePayload;
+ };
+type RegisterResult = 
+ variant {
+   err: text;
+   ok: record {
+         token: text;
+         userId: UserId;
+       };
+ };
+type PublicUser = 
+ record {
+   about: text;
+   avatarUrl: text;
+   id: UserId;
+   isAdmin: bool;
+   joinedAt: int;
+   name: text;
+   phone: text;
+   username: text;
+ };
+type OtpResult = 
+ variant {
+   err: text;
+   ok: text;
+ };
+type Message = 
+ record {
+   chatId: text;
+   id: nat;
+   imageUrl: text;
+   senderId: UserId;
+   senderName: text;
+   "text": text;
+   timestamp: int;
+ };
+type LoginResult = 
+ variant {
+   err: text;
+   ok: record {
+         token: text;
+         user: PublicUser;
+       };
+ };
+type HttpResponsePayload = 
+ record {
+   body: blob;
+   headers: vec record {
+                  name: text;
+                  value: text;
+                };
+   status: nat;
+ };
+type ConversationInfo = 
+ record {
+   chatId: text;
+   lastMessage: text;
+   lastTimestamp: int;
+   otherUserAvatar: text;
+   otherUserId: UserId;
+   otherUserName: text;
+   otherUserUsername: text;
+ };
+service : {
+  aanyaReply: (adminToken: text, targetUserId: nat, replyText: text) ->
+   (opt nat);
+  addFriend: (token: text, friendId: UserId) -> (variant {
+                                                   err: text;
+                                                   ok;
+                                                 });
+  adminGetStats: (token: text) ->
+   (opt record {
+          userCount: nat;
+          users: vec PublicUser;
+        });
+  areFriends: (userId1: UserId, userId2: UserId) -> (bool) query;
+  checkUserExists: (uname: text) -> (bool) query;
+  forceResetPassword: (targetUsername: text, newPassword: text) -> (text);
+  getAanyaConversations: (adminToken: text) -> (vec ConversationInfo);
+  getAanyaProfile: () -> (opt PublicUser) query;
+  getAanyaUserId: () -> (nat);
+  getAllUsers: () -> (vec PublicUser) query;
+  getChatWallpaper: (chatId: text) -> (text) query;
+  getMessages: (chatId: text) -> (vec Message) query;
+  getMyFriends: (token: text) -> (vec PublicUser);
+  getMyProfile: (token: text) -> (opt PublicUser);
+  getUserById: (userId: UserId) -> (opt PublicUser) query;
+  getUserByUsername: (uname: text) -> (opt PublicUser) query;
+  getUserConversations: (token: text) -> (vec ConversationInfo);
+  heartbeat: (token: text) -> (bool);
+  isPhoneRegistered: (phone: text) -> (bool) query;
+  isSmsConfigured: () -> (bool) query;
+  isUserOnline: (userId: UserId) -> (bool) query;
+  isUsernameAvailablePublic: (uname: text) -> (bool) query;
+  login: (phone: text, pin: text) -> (LoginResult);
+  loginWithOtp: (phone: text, otp: text) -> (LoginResult);
+  loginWithPassword: (username: text, password: text) -> (LoginResult);
+  logout: (token: text) -> (bool);
+  register: (phone: text, pin: text, name: text) -> (RegisterResult);
+  registerWithOtp: (phone: text, otp: text, name: text, pin: text) ->
+   (RegisterResult);
+  registerWithPassword: (username: text, password: text, name: text) ->
+   (RegisterResult);
+  requestOtp: (phone: text) -> (OtpResult);
+  resetAdminPassword: (targetUsername: text, newPassword: text, recoveryKey:
+   text) -> (text);
+  sendAanyaProactive: (targetUserId: nat, "text": text) -> (opt nat);
+  sendAanyaWelcome: (newUserId: nat) -> ();
+  sendMessage: (token: text, chatId: text, "text": text, imageUrl: text) ->
+   (opt nat);
+  sendMessageAsBot: (adminToken: text, targetUserId: nat, "text": text) ->
+   (opt nat);
+  setApiKey: (token: text, apiKey: text) -> (bool);
+  setChatWallpaper: (token: text, chatId: text, wallpaper: text) -> (bool);
+  setUsername: (token: text, uname: text) -> (variant {
+                                                err: text;
+                                                ok;
+                                              });
+  transformHttpResponse: (args: TransformArgs) -> (HttpResponsePayload) query;
+  updateProfile: (token: text, name: text, about: text, avatarUrl: text) ->
+   (bool);
+  verifyOtp: (phone: text, otp: text) -> (bool);
+}

@@ -247,8 +247,8 @@ export default function App() {
       try {
         const actor = await getActor();
         const profileResult = await actor.getMyProfile(savedToken);
-        if (profileResult && profileResult.length > 0) {
-          const freshUser = profileResult[0] as PublicUser;
+        if (profileResult) {
+          const freshUser = profileResult as PublicUser;
           setToken(savedToken);
           setCurrentUser(freshUser);
           setDpUrl(freshUser.avatarUrl || null);

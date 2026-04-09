@@ -7,103 +7,129 @@ export interface None {
     __kind__: "None";
 }
 export type Option<T> = Some<T> | None;
-
-export interface PublicUser {
-    id: bigint;
-    name: string;
-    username: string;
-    about: string;
-    avatarUrl: string;
-    phone: string;
-    joinedAt: bigint;
-    isAdmin: boolean;
+export type UserId = bigint;
+export type RegisterResult = {
+    __kind__: "ok";
+    ok: {
+        token: string;
+        userId: UserId;
+    };
+} | {
+    __kind__: "err";
+    err: string;
+};
+export interface HttpResponsePayload {
+    status: bigint;
+    body: Uint8Array;
+    headers: Array<{
+        value: string;
+        name: string;
+    }>;
 }
-
+export interface ConversationInfo {
+    otherUserName: string;
+    otherUserId: UserId;
+    lastMessage: string;
+    otherUserAvatar: string;
+    lastTimestamp: bigint;
+    chatId: string;
+    otherUserUsername: string;
+}
 export interface Message {
     id: bigint;
-    chatId: string;
-    senderId: bigint;
-    senderName: string;
     text: string;
     imageUrl: string;
     timestamp: bigint;
-}
-
-export interface ConversationInfo {
+    senderName: string;
     chatId: string;
-    otherUserId: bigint;
-    otherUserName: string;
-    otherUserUsername: string;
-    otherUserAvatar: string;
-    lastMessage: string;
-    lastTimestamp: bigint;
+    senderId: UserId;
 }
-
-export type LoginResult = 
-    | { ok: { token: string; user: PublicUser } }
-    | { err: string };
-
-export type RegisterResult = 
-    | { ok: { userId: bigint; token: string } }
-    | { err: string };
-
-export type OtpResult =
-    | { ok: string }
-    | { err: string };
-
-export type SetUsernameResult =
-    | { ok: null }
-    | { err: string };
-
-export type AddFriendResult =
-    | { ok: null }
-    | { err: string };
-
-export interface AdminStats {
-    userCount: bigint;
-    users: PublicUser[];
+export type LoginResult = {
+    __kind__: "ok";
+    ok: {
+        token: string;
+        user: PublicUser;
+    };
+} | {
+    __kind__: "err";
+    err: string;
+};
+export interface PublicUser {
+    id: UserId;
+    about: string;
+    username: string;
+    name: string;
+    joinedAt: bigint;
+    avatarUrl: string;
+    isAdmin: boolean;
+    phone: string;
 }
-
+export type OtpResult = {
+    __kind__: "ok";
+    ok: string;
+} | {
+    __kind__: "err";
+    err: string;
+};
+export interface TransformArgs {
+    context: Uint8Array;
+    response: HttpResponsePayload;
+}
 export interface backendInterface {
-    requestOtp(phone: string): Promise<OtpResult>;
-    verifyOtp(phone: string, otp: string): Promise<boolean>;
-    isPhoneRegistered(phone: string): Promise<boolean>;
-    registerWithOtp(phone: string, otp: string, name: string, pin: string): Promise<RegisterResult>;
-    loginWithOtp(phone: string, otp: string): Promise<LoginResult>;
-    register(phone: string, pin: string, name: string): Promise<RegisterResult>;
-    login(phone: string, pin: string): Promise<LoginResult>;
-    logout(token: string): Promise<boolean>;
-    getMyProfile(token: string): Promise<[] | [PublicUser]>;
-    updateProfile(token: string, name: string, about: string, avatarUrl: string): Promise<boolean>;
-    getUserById(userId: bigint): Promise<[] | [PublicUser]>;
-    getUserByUsername(username: string): Promise<[] | [PublicUser]>;
-    isUsernameAvailablePublic(username: string): Promise<boolean>;
-    checkUserExists(username: string): Promise<boolean>;
-    setUsername(token: string, username: string): Promise<SetUsernameResult>;
-    getAllUsers(): Promise<PublicUser[]>;
-    sendMessage(token: string, chatId: string, text: string, imageUrl: string): Promise<[] | [bigint]>;
-    getMessages(chatId: string): Promise<Message[]>;
-    getUserConversations(token: string): Promise<ConversationInfo[]>;
-    adminGetStats(token: string): Promise<[] | [AdminStats]>;
-    setApiKey(token: string, apiKey: string): Promise<boolean>;
-    isSmsConfigured(): Promise<boolean>;
-    registerWithPassword(username: string, password: string, name: string): Promise<RegisterResult>;
-    loginWithPassword(username: string, password: string): Promise<LoginResult>;
-    heartbeat(token: string): Promise<boolean>;
-    isUserOnline(userId: bigint): Promise<boolean>;
-    setChatWallpaper(token: string, chatId: string, wallpaper: string): Promise<boolean>;
-    getChatWallpaper(chatId: string): Promise<string>;
-    addFriend(token: string, friendId: bigint): Promise<AddFriendResult>;
-    getMyFriends(token: string): Promise<PublicUser[]>;
-    areFriends(userId1: bigint, userId2: bigint): Promise<boolean>;
-    resetAdminPassword(targetUsername: string, newPassword: string, recoveryKey: string): Promise<string>;
+    aanyaReply(adminToken: string, targetUserId: bigint, replyText: string): Promise<bigint | null>;
+    addFriend(token: string, friendId: UserId): Promise<{
+        __kind__: "ok";
+        ok: null;
+    } | {
+        __kind__: "err";
+        err: string;
+    }>;
+    adminGetStats(token: string): Promise<{
+        users: Array<PublicUser>;
+        userCount: bigint;
+    } | null>;
+    areFriends(userId1: UserId, userId2: UserId): Promise<boolean>;
+    checkUserExists(uname: string): Promise<boolean>;
     forceResetPassword(targetUsername: string, newPassword: string): Promise<string>;
-    // Aanya bot functions
+    getAanyaConversations(adminToken: string): Promise<Array<ConversationInfo>>;
+    getAanyaProfile(): Promise<PublicUser | null>;
     getAanyaUserId(): Promise<bigint>;
-    getAanyaProfile(): Promise<[] | [PublicUser]>;
-    sendMessageAsBot(adminToken: string, targetUserId: bigint, text: string): Promise<[] | [bigint]>;
+    getAllUsers(): Promise<Array<PublicUser>>;
+    getChatWallpaper(chatId: string): Promise<string>;
+    getMessages(chatId: string): Promise<Array<Message>>;
+    getMyFriends(token: string): Promise<Array<PublicUser>>;
+    getMyProfile(token: string): Promise<PublicUser | null>;
+    getUserById(userId: UserId): Promise<PublicUser | null>;
+    getUserByUsername(uname: string): Promise<PublicUser | null>;
+    getUserConversations(token: string): Promise<Array<ConversationInfo>>;
+    heartbeat(token: string): Promise<boolean>;
+    isPhoneRegistered(phone: string): Promise<boolean>;
+    isSmsConfigured(): Promise<boolean>;
+    isUserOnline(userId: UserId): Promise<boolean>;
+    isUsernameAvailablePublic(uname: string): Promise<boolean>;
+    login(phone: string, pin: string): Promise<LoginResult>;
+    loginWithOtp(phone: string, otp: string): Promise<LoginResult>;
+    loginWithPassword(username: string, password: string): Promise<LoginResult>;
+    logout(token: string): Promise<boolean>;
+    register(phone: string, pin: string, name: string): Promise<RegisterResult>;
+    registerWithOtp(phone: string, otp: string, name: string, pin: string): Promise<RegisterResult>;
+    registerWithPassword(username: string, password: string, name: string): Promise<RegisterResult>;
+    requestOtp(phone: string): Promise<OtpResult>;
+    resetAdminPassword(targetUsername: string, newPassword: string, recoveryKey: string): Promise<string>;
+    sendAanyaProactive(targetUserId: bigint, text: string): Promise<bigint | null>;
     sendAanyaWelcome(newUserId: bigint): Promise<void>;
-    aanyaReply(adminToken: string, targetUserId: bigint, replyText: string): Promise<[] | [bigint]>;
-    getAanyaConversations(adminToken: string): Promise<ConversationInfo[]>;
-    sendAanyaProactive(targetUserId: bigint, text: string): Promise<[] | [bigint]>;
+    sendMessage(token: string, chatId: string, text: string, imageUrl: string): Promise<bigint | null>;
+    sendMessageAsBot(adminToken: string, targetUserId: bigint, text: string): Promise<bigint | null>;
+    setApiKey(token: string, apiKey: string): Promise<boolean>;
+    setChatWallpaper(token: string, chatId: string, wallpaper: string): Promise<boolean>;
+    setUsername(token: string, uname: string): Promise<{
+        __kind__: "ok";
+        ok: null;
+    } | {
+        __kind__: "err";
+        err: string;
+    }>;
+    transformHttpResponse(args: TransformArgs): Promise<HttpResponsePayload>;
+    updateProfile(token: string, name: string, about: string, avatarUrl: string): Promise<boolean>;
+    verifyOtp(phone: string, otp: string): Promise<boolean>;
 }

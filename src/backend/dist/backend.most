@@ -1,0 +1,88 @@
+// Version: 1.0.0
+type HttpRequestArgs__893152371 =
+  {
+    body : ?Blob;
+    headers : [{name : Text; value : Text}];
+    max_response_bytes : ?Nat64;
+    method : {#get; #head; #post};
+    transform :
+      ?{
+         context : Blob;
+         function :
+           shared query TransformArgs__358391134 ->
+             async HttpResponsePayload__786650749
+       };
+    url : Text
+  };
+type HttpResponsePayload__786650749 =
+  {body : Blob; headers : [{name : Text; value : Text}]; status : Nat};
+type Message__19119041 =
+  {
+    chatId : Text;
+    id : Nat;
+    imageUrl : Text;
+    senderId : UserId__313180070;
+    senderName : Text;
+    text : Text;
+    timestamp : Int
+  };
+type TransformArgs__358391134 =
+  {context : Blob; response : HttpResponsePayload__786650749};
+type UserId__313180070 = Nat;
+type UserV1__994880483 =
+  {
+    about : Text;
+    avatarUrl : Text;
+    id : UserId__313180070;
+    isAdmin : Bool;
+    joinedAt : Int;
+    name : Text;
+    phone : Text;
+    pin : Text
+  };
+type UserV2__800947904 =
+  {
+    about : Text;
+    avatarUrl : Text;
+    id : UserId__313180070;
+    isAdmin : Bool;
+    joinedAt : Int;
+    name : Text;
+    phone : Text;
+    pin : Text;
+    username : Text
+  };
+type User__831686142 =
+  {
+    about : Text;
+    avatarUrl : Text;
+    id : UserId__313180070;
+    isAdmin : Bool;
+    joinedAt : Int;
+    name : Text;
+    password : Text;
+    phone : Text;
+    username : Text
+  };
+actor {
+  stable AANYA_BOT_PASSWORD : Text;
+  stable AANYA_ID : Nat;
+  stable var friendsStable : [(UserId__313180070, [UserId__313180070])];
+  stable ic :
+    actor {
+      http_request :
+        shared HttpRequestArgs__893152371 ->
+          async HttpResponsePayload__786650749
+    };
+  stable var lastSeenStable : [(UserId__313180070, Int)];
+  stable var messagesStable : [(Nat, Message__19119041)];
+  stable var nextMsgId : Nat;
+  stable var nextUserId : Nat;
+  stable var otpsStable : [(Text, Text)];
+  stable var sessionsStable : [(Text, UserId__313180070)];
+  stable var smsApiKey : Text;
+  stable var usersStable : [(Text, UserV1__994880483)];
+  stable var usersStableV2 : [(Text, UserV2__800947904)];
+  stable var usersStableV3 : [(UserId__313180070, User__831686142)];
+  stable var wallpapersStable : [(Text, Text)]
+};

@@ -30,56 +30,42 @@ function playNotificationSound() {
 
 function loadContactsFromStorage(
   currentUser: PublicUser | null,
-  token: string,
+  _token?: string,
 ): ConversationInfo[] {
-  const keys = [
-    currentUser?.id != null ? `chatme_contacts_uid_${currentUser.id}` : "",
-    token && !token.startsWith("demo-") ? `chatme_contacts_${token}` : "",
-  ].filter(Boolean);
-
-  for (const key of keys) {
-    try {
-      const saved = localStorage.getItem(key);
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        return parsed.map((c: any) => ({
-          ...c,
-          lastTimestamp: BigInt(c.lastTimestamp ?? 0),
-          otherUserId: BigInt(c.otherUserId ?? 0),
-        }));
-      }
-    } catch {
-      // try next key
+  if (currentUser?.id == null) return [];
+  const key = `chatme_contacts_uid_${currentUser.id}`;
+  try {
+    const saved = localStorage.getItem(key);
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      return parsed.map((c: any) => ({
+        ...c,
+        lastTimestamp: BigInt(c.lastTimestamp ?? 0),
+        otherUserId: BigInt(c.otherUserId ?? 0),
+      }));
     }
+  } catch {
+    // ignore parse errors
   }
   return [];
 }
 
 function saveContactsToStorage(
   currentUser: PublicUser | null,
-  token: string,
+  _token: string,
   contacts: ConversationInfo[],
 ) {
+  if (currentUser?.id == null) return;
+  const key = `chatme_contacts_uid_${currentUser.id}`;
   const serializable = contacts.map((c) => ({
     ...c,
     lastTimestamp: c.lastTimestamp.toString(),
     otherUserId: c.otherUserId.toString(),
   }));
-  const json = JSON.stringify(serializable);
-
-  if (currentUser?.id != null) {
-    try {
-      localStorage.setItem(`chatme_contacts_uid_${currentUser.id}`, json);
-    } catch {
-      // ignore storage errors
-    }
-  }
-  if (token && !token.startsWith("demo-")) {
-    try {
-      localStorage.setItem(`chatme_contacts_${token}`, json);
-    } catch {
-      // ignore storage errors
-    }
+  try {
+    localStorage.setItem(key, JSON.stringify(serializable));
+  } catch {
+    // ignore storage errors
   }
 }
 
@@ -176,14 +162,16 @@ export default function ChatList({
         const convList = convs as ConversationInfo[];
 
         setConversations((prev) => {
-          if (convList.length === 0 && prev.length > 0) {
-            saveContactsToStorage(currentUser, token, prev);
-            return prev;
-          }
-
-          const merged = [...convList];
-          for (const p of prev) {
-            if (!merged.some((r) => r.chatId === p.chatId)) merged.push(p);
+          // NEVER wipe local contacts when backend returns empty — merge only
+          const merged = [...prev];
+          for (const c of convList) {
+            const idx = merged.findIndex((m) => m.chatId === c.chatId);
+            if (idx >= 0) {
+              // Update existing entry with fresh backend data (newer timestamp)
+              merged[idx] = c;
+            } else {
+              merged.push(c);
+            }
           }
           // Always ensure Aanya is present
           if (
@@ -319,8 +307,8 @@ export default function ChatList({
     setSearchErr("");
     try {
       const result = await withRetry((actor) => actor.getUserByUsername(uname));
-      if (result && result.length > 0) {
-        setFoundUser(result[0] as PublicUser);
+      if (result) {
+        setFoundUser(result as PublicUser);
       } else {
         setSearchErr("No user found with this username 😔");
       }
@@ -382,7 +370,11 @@ export default function ChatList({
     };
 
     setConversations((prev) => {
-      if (prev.some((c) => c.chatId === chatId)) return prev;
+      if (prev.some((c) => c.chatId === chatId)) {
+        // Contact already exists — save to ensure uid key is used
+        saveContactsToStorage(currentUser, token, prev);
+        return prev;
+      }
       const updated = sortConversations([newContact, ...prev], adminId);
       saveContactsToStorage(currentUser, token, updated);
       return updated;

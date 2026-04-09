@@ -437,8 +437,8 @@ export default function ActiveChat({
       const result = await withRetry((actor) =>
         actor.sendMessage(token, chatId, text, ""),
       );
-      // result is [] | [bigint] — empty array means failure/session expired
-      if (!result || result.length === 0) {
+      // result is bigint | null — null means failure/session expired
+      if (result === null || result === undefined) {
         // Revert optimistic message
         setMessages((prev) => prev.filter((m) => m.id !== optimisticId));
         setSessionExpired(true);
@@ -455,32 +455,44 @@ export default function ActiveChat({
 
       // Trigger Aanya AI reply if chatting with Aanya
       const isAanyaChat = /(^|_)999999($|_)/.test(chatId);
-      if (isAanyaChat) {
-        const delay = getTypingDelay(text);
+      if (isAanyaChat && currentUser) {
+        const typingDelay = getTypingDelay(text);
         setIsAanyaTyping(true);
-        setTimeout(async () => {
+        (async () => {
+          let reply: string;
           try {
-            const reply = await getAanyaReply(aanyaHistoryRef.current, text);
-            // Update conversation history
-            aanyaHistoryRef.current = [
-              ...aanyaHistoryRef.current,
-              { role: "user" as const, content: text },
-              { role: "assistant" as const, content: reply },
-            ].slice(-20);
-            // Send reply via backend
+            // Always gets a reply (Groq API or fallback Hinglish message)
+            reply = await getAanyaReply(aanyaHistoryRef.current, text);
+          } catch {
+            reply = "arre yaar thoda busy thi 😅 ab bata!";
+          }
+          // Update local conversation history for context
+          aanyaHistoryRef.current = [
+            ...aanyaHistoryRef.current,
+            { role: "user" as const, content: text },
+            { role: "assistant" as const, content: reply },
+          ].slice(-20);
+          // Wait for typing delay so it feels natural
+          await new Promise((r) => setTimeout(r, typingDelay));
+          // Send Aanya's reply to backend — this creates the actual message
+          try {
             const actor = await getActor();
-            await actor.sendAanyaProactive(currentUser!.id, reply);
-            // Refresh messages so Aanya reply appears immediately
+            await actor.sendAanyaProactive(currentUser.id, reply);
+            console.log("[Aanya] Reply sent:", reply.slice(0, 60));
+          } catch (sendErr) {
+            console.error("[Aanya] sendAanyaProactive failed:", sendErr);
+          }
+          setIsAanyaTyping(false);
+          // Refresh messages so reply appears in chat
+          try {
             const aanyaMsgs = await withRetry((a) => a.getMessages(chatId));
             const aanyaConverted = aanyaMsgs.map(backendToMessage);
             setMessages(aanyaConverted);
             lastCountRef.current = aanyaConverted.length;
-          } catch (aanyaErr) {
-            console.error("Aanya reply failed:", aanyaErr);
-          } finally {
-            setIsAanyaTyping(false);
+          } catch {
+            // ignore refresh errors — polling will pick it up
           }
-        }, delay);
+        })();
       }
     } catch {
       // Revert optimistic message on network error
@@ -542,7 +554,7 @@ export default function ActiveChat({
       const result = await withRetry((actor) =>
         actor.sendMessage(token, chatId, sticker, ""),
       );
-      if (!result || result.length === 0) {
+      if (result === null || result === undefined) {
         setMessages((prev) => prev.filter((m) => m.id !== optimisticId));
         setSessionExpired(true);
         setSendError(

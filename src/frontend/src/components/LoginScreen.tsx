@@ -205,8 +205,8 @@ export default function LoginScreen({
           const profileResult = await withRetry((actor) =>
             actor.getMyProfile(result.ok.token),
           );
-          if (profileResult && profileResult.length > 0) {
-            onLogin(result.ok.token, profileResult[0] as PublicUser);
+          if (profileResult) {
+            onLogin(result.ok.token, profileResult as PublicUser);
           } else {
             setSuccessMsg("Account created! Please login 🌸");
             setTab("login");
@@ -571,7 +571,7 @@ export default function LoginScreen({
                       setRegUsername(e.target.value);
                       setUsernameAvailable(null);
                     }}
-                    placeholder="e.g. arun_cool"
+                    placeholder="(user_id)"
                     style={{ ...inputStyle, paddingRight: "110px" }}
                     maxLength={20}
                     data-ocid="login.input"

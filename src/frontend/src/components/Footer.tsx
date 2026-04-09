@@ -14,9 +14,6 @@ interface FooterProps {
 }
 
 export default function Footer({ darkMode = false }: FooterProps) {
-  const year = new Date().getFullYear();
-  const host = typeof window !== "undefined" ? window.location.hostname : "";
-
   return (
     <footer
       className="relative w-full py-4 px-8 flex items-center justify-between overflow-hidden"
@@ -59,21 +56,6 @@ export default function Footer({ darkMode = false }: FooterProps) {
             {i < arr.length - 1 && <FloatingHeart size={8} color="#FFD1DC" />}
           </span>
         ))}
-        <span className="mx-2 text-xs" style={{ color: "#aaa" }}>
-          ·
-        </span>
-        <span className="text-xs" style={{ color: "#aaa" }}>
-          © {year}.{" "}
-          <a
-            href={`https://caffeine.ai?utm_source=caffeine-footer&utm_medium=referral&utm_content=${encodeURIComponent(host)}`}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="hover:opacity-70 transition-all"
-            style={{ color: "#FF8C9F" }}
-          >
-            Built with ❤️ using caffeine.ai
-          </a>
-        </span>
       </div>
 
       {/* Social icons */}

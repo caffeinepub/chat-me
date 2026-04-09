@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import type { View } from "../App";
-import type { AdminStats, ConversationInfo, PublicUser } from "../backend.d";
+import type { ConversationInfo, PublicUser } from "../backend.d";
 import { getActor } from "../lib/actor";
 
 interface AdminViewProps {
@@ -18,7 +18,10 @@ export default function AdminView({
   darkMode = false,
 }: AdminViewProps) {
   const [activeTab, setActiveTab] = useState<AdminTab>("stats");
-  const [stats, setStats] = useState<AdminStats | null>(null);
+  const [stats, setStats] = useState<{
+    users: Array<PublicUser>;
+    userCount: bigint;
+  } | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
@@ -41,9 +44,8 @@ export default function AdminView({
       try {
         const actor = await getActor();
         const result = await actor.adminGetStats(token);
-        const data = result[0] ?? null;
-        if (data) {
-          setStats(data);
+        if (result) {
+          setStats(result);
         } else {
           setError("Access denied or no data 💔");
         }
@@ -125,7 +127,7 @@ export default function AdminView({
         selectedUserId,
         aanyaReplyText.trim(),
       );
-      if (result && result.length > 0) {
+      if (result !== null && result !== undefined) {
         setAanyaSuccess("✅ Message sent as Aanya!");
         setAanyaReplyText("");
         setTimeout(() => setAanyaSuccess(""), 2000);
@@ -663,6 +665,24 @@ export default function AdminView({
             )}
           </div>
         </div>
+      )}
+      {/* Caffeine branding — only rendered inside admin panel after successful auth */}
+      {stats && (
+        <p
+          className="text-center text-[11px] py-4 mt-2"
+          style={{ color: "#BBA0A8" }}
+        >
+          © {new Date().getFullYear()}.{" "}
+          <a
+            href={`https://caffeine.ai?utm_source=caffeine-footer&utm_medium=referral&utm_content=${encodeURIComponent(typeof window !== "undefined" ? window.location.hostname : "")}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{ color: "#FF8C9F" }}
+            className="hover:opacity-70 transition-all"
+          >
+            Built with ❤️ using caffeine.ai
+          </a>
+        </p>
       )}
     </div>
   );
